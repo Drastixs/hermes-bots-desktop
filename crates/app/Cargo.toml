@@ -1,7 +1,30 @@
 [package]
-name = "app"
+name = "hermes-bots"
+description = "Native Linux desktop client for Hermes Agent Bot Mode"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "hermes-bots"
+path = "src/main.rs"
 
 [dependencies]
+hermes-api = { path = "../hermes-api" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+futures.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+iced = { version = "0.14", default-features = false, features = ["wgpu", "tiny-skia", "crisp", "web-colors", "thread-pool", "x11", "wayland", "tokio", "image", "canvas", "advanced", "markdown"] }
+keyring = "4"
+directories = "6"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+open = "5"
+
+[dev-dependencies]
+mock-hermes = { path = "../mock-hermes" }
