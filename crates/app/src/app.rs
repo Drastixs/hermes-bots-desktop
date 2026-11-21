@@ -219,7 +219,7 @@ impl App {
             // Shortcuts (Ctrl+key, Escape) work even when a text field has focus.
             iced::Event::Keyboard(k @ keyboard::Event::KeyPressed { .. }) => {
                 let is_shortcut = matches!(&k, keyboard::Event::KeyPressed { modifiers, key, .. }
-                    if modifiers.command() || matches!(key, Key::Named(Named::Escape)));
+                    if modifiers.command() || matches!(key, Key::Named(Named::Escape | Named::Tab)));
                 (is_shortcut || status == iced::event::Status::Ignored).then_some(Msg::Key(k))
             }
             iced::Event::Keyboard(k @ keyboard::Event::ModifiersChanged(_)) => Some(Msg::Key(k)),

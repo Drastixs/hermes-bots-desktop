@@ -432,7 +432,11 @@ async fn handle_rpc(m: &Shared, method: &str, p: &Value) -> Result<Value, (i64, 
             g.sessions.insert(sid.clone(), profile.clone());
             let mut msgs = if method == "session.resume" { fixtures::history(&profile) } else { vec![] };
             msgs.extend(g.stored.get(&profile).cloned().unwrap_or_default());
-            Ok(json!({"session_id": sid, "stored_session_id": format!("chat-{profile}"), "message_count": msgs.len(), "messages": msgs, "info": {"model": "mock-model-1", "provider": "mock"}, "running": false}))
+            let mut r = json!({"session_id": sid, "stored_session_id": format!("chat-{profile}"), "message_count": msgs.len(), "messages": msgs, "info": {"model": "mock-model-1", "provider": "mock"}});
+            if method == "session.resume" {
+                r["running"] = json!(false);
+            }
+            Ok(r)
         }
         "prompt.submit" => {
             let sid = p.get("session_id").and_then(Value::as_str).unwrap_or("").to_string();

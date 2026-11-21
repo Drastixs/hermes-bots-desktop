@@ -60,6 +60,8 @@ pub struct Gateway {
     out: mpsc::Sender<WsMessage>,
     pending: Pending,
     next_id: Arc<AtomicU64>,
+    /// Set by the reader task when the socket ends.
+    closed: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// Parse one text frame from the server. Pure, so it can be unit-tested.
@@ -139,6 +141,8 @@ impl Gateway {
         });
 
         // Reader task.
+        let closed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let closed_r = closed.clone();
         let pending_r = pending.clone();
         let out_for_pong = out_tx.clone();
         tokio::spawn(async move {
@@ -182,21 +186,30 @@ impl Gateway {
                 }
             }
             // Fail every pending call so no caller waits forever.
+            closed_r.store(true, Ordering::SeqCst);
             for (_, tx) in pending_r.lock().await.drain() {
                 let _ = tx.send(Err(GatewayError::Closed));
             }
             let _ = in_tx.send(Incoming::Closed { code: close_code, reason: close_reason }).await;
         });
 
-        let gw = Gateway { out: out_tx, pending, next_id: Arc::new(AtomicU64::new(1)) };
+        let gw = Gateway { out: out_tx, pending, next_id: Arc::new(AtomicU64::new(1)), closed };
         Ok((gw, in_rx))
     }
 
     /// Send a request and wait for its result.
     pub async fn call(&self, method: &str, params: Value) -> Result<Value, GatewayError> {
+        if self.is_closed() {
+            return Err(GatewayError::Closed);
+        }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
         self.pending.lock().await.insert(id, tx);
+        // The reader may have closed between the check and the insert.
+        if self.is_closed() {
+            self.pending.lock().await.remove(&id);
+            return Err(GatewayError::Closed);
+        }
         let frame = json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params});
         if self.out.send(WsMessage::Text(frame.to_string().into())).await.is_err() {
             self.pending.lock().await.remove(&id);
@@ -230,7 +243,7 @@ impl Gateway {
     }
 
     pub fn is_closed(&self) -> bool {
-        self.out.is_closed()
+        self.closed.load(Ordering::SeqCst) || self.out.is_closed()
     }
 
     /// Close the socket.
