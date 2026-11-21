@@ -328,8 +328,13 @@ pub fn truncate(s: &str, max: usize) -> String {
 
 /// One line preview (roster rows).
 pub fn one_line(s: &str, max_chars: usize) -> String {
-    let flat: String = s.split_whitespace().collect::<Vec<_>>().join(" ");
-    let flat = flat.trim_start_matches(['#', '*', '-', ' ']).replace("**", "");
+    let flat: String = s
+        .lines()
+        .map(|l| l.trim().trim_start_matches(['#', '*', '-', '>', ' ']).trim())
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let flat: String = flat.replace("**", "").replace('`', "").split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.chars().count() <= max_chars {
         flat
     } else {
@@ -357,8 +362,8 @@ pub struct ScreenState {
     pub frame_size: (u16, u16),
     pub connecting: bool,
     pub error: Option<String>,
-    pub buttons: u8,
-    pub last_pointer: (u16, u16),
+    /// Profile whose screen is streamed as a small preview (details pane).
+    pub previewing: Option<String>,
 }
 
 /// Map a point in the view (size `view`) to framebuffer coords for a `ContentFit::Contain` image.
@@ -459,6 +464,7 @@ mod tests {
     fn text_helpers() {
         assert_eq!(truncate("héllo", 2), "h…");
         assert_eq!(one_line("## Title\n\nmore  text", 50), "Title more text");
+        assert_eq!(one_line("Done:\n\n- **3 items** need", 50), "Done: 3 items need");
         assert_eq!(one_line("abcdef", 3), "abc…");
     }
 

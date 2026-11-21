@@ -5,7 +5,7 @@
 use iced::border::Radius;
 use iced::font::{Family, Weight};
 use iced::widget::{button, container, scrollable, text_editor, text_input};
-use iced::{Background, Border, Color, Font, Shadow, Theme, Vector, color};
+use iced::{Background, Border, Color, Font, Theme, color};
 
 pub const FONT_INTER_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
 pub const FONT_INTER_MEDIUM: &[u8] = include_bytes!("../../../assets/fonts/Inter-Medium.ttf");
@@ -146,7 +146,6 @@ pub fn dialog(_: &Theme) -> container::Style {
         background: Some(Background::Color(color!(0x072424))),
         border: Border { color: c::BORDER_STRONG, width: 1.0, radius: 14.0.into() },
         text_color: Some(c::TEXT),
-        shadow: Shadow { color: alpha(Color::BLACK, 0.5), offset: Vector::new(0.0, 12.0), blur_radius: 40.0 },
         ..Default::default()
     }
 }
@@ -169,7 +168,6 @@ pub fn composer(_: &Theme) -> container::Style {
         background: Some(Background::Color(c::SURFACE)),
         border: Border { color: c::BORDER_STRONG, width: 1.0, radius: 14.0.into() },
         text_color: Some(c::TEXT),
-        shadow: Shadow { color: alpha(Color::BLACK, 0.35), offset: Vector::new(0.0, 6.0), blur_radius: 18.0 },
         ..Default::default()
     }
 }
@@ -205,7 +203,6 @@ pub fn floating_pill(_: &Theme) -> container::Style {
         background: Some(Background::Color(alpha(color!(0x021212), 0.94))),
         border: Border { color: c::BORDER_STRONG, width: 1.0, radius: 999.0.into() },
         text_color: Some(c::TEXT),
-        shadow: Shadow { color: alpha(Color::BLACK, 0.5), offset: Vector::new(0.0, 6.0), blur_radius: 20.0 },
         ..Default::default()
     }
 }
@@ -331,7 +328,7 @@ pub fn input(_: &Theme, s: text_input::Status) -> text_input::Style {
 
 pub fn editor(_: &Theme, _s: text_editor::Status) -> text_editor::Style {
     text_editor::Style {
-        background: Background::Color(Color::TRANSPARENT),
+        background: Background::Color(c::SURFACE),
         border: Border { width: 0.0, ..Default::default() },
         placeholder: c::TEXT_3,
         value: c::TEXT,
@@ -341,14 +338,14 @@ pub fn editor(_: &Theme, _s: text_editor::Status) -> text_editor::Style {
 
 pub fn scroll(_: &Theme, s: scrollable::Status) -> scrollable::Style {
     let mut st = scrollable::default(&theme(), s);
-    let rail = |r: scrollable::Rail| scrollable::Rail {
+    let rail = |_r: scrollable::Rail| scrollable::Rail {
         background: None,
         border: Border::default(),
         scroller: scrollable::Scroller {
             background: Background::Color(alpha(c::TEXT, 0.14)),
             border: Border { radius: 4.0.into(), ..Default::default() },
         },
-        ..r
+
     };
     st.vertical_rail = rail(st.vertical_rail);
     st.horizontal_rail = rail(st.horizontal_rail);

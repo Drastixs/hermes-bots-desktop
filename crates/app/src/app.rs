@@ -81,7 +81,6 @@ pub struct App {
     pub wallpaper: image::Handle,
     pub phase_t: f32,
     pub toast: Option<String>,
-    pub screen_view_size: (f32, f32),
     pub modifiers: keyboard::Modifiers,
 }
 
@@ -116,10 +115,7 @@ pub enum Msg {
     CloseScreen,
     TakeControl,
     HandBack,
-    ScreenMove(iced::Point),
-    ScreenPress,
-    ScreenRelease,
-    ScreenSize(f32, f32),
+    ScreenBytes(Vec<Vec<u8>>),
     // settings
     OpenSettings(SettingsPane),
     CloseSettings,
@@ -169,7 +165,6 @@ impl App {
             wallpaper: image::Handle::from_bytes(crate::theme::WALLPAPER),
             phase_t: 0.0,
             toast: None,
-            screen_view_size: (1.0, 1.0),
             modifiers: keyboard::Modifiers::default(),
         };
         // Resume a stored session.
@@ -183,7 +178,8 @@ impl App {
         if std::env::var("HERMES_BOTS_AUTO_SIGNIN").is_ok_and(|v| v == "1") && app.session.is_none() {
             return (app, Task::done(Msg::SignInPressed));
         }
-        (app, Task::none())
+        let focus = if app.session.is_none() { iced::widget::operation::focus("gateway-url") } else { Task::none() };
+        (app, focus)
     }
 
     pub fn title(&self) -> String {
@@ -219,7 +215,16 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Msg> {
-        let mut subs = vec![iced::keyboard::listen().map(Msg::Key)];
+        let mut subs = vec![iced::event::listen_with(|ev, status, _| match ev {
+            // Shortcuts (Ctrl+key, Escape) work even when a text field has focus.
+            iced::Event::Keyboard(k @ keyboard::Event::KeyPressed { .. }) => {
+                let is_shortcut = matches!(&k, keyboard::Event::KeyPressed { modifiers, key, .. }
+                    if modifiers.command() || matches!(key, Key::Named(Named::Escape)));
+                (is_shortcut || status == iced::event::Status::Ignored).then_some(Msg::Key(k))
+            }
+            iced::Event::Keyboard(k @ keyboard::Event::ModifiersChanged(_)) => Some(Msg::Key(k)),
+            _ => None,
+        })];
         if let Some(s) = &self.session {
             subs.push(Subscription::run_with(s.clone(), net::run).map(Msg::Net));
         }
@@ -353,10 +358,17 @@ impl App {
                     if self.screen.mode != ScreenMode::Closed {
                         self.close_screen();
                     }
+                    self.maybe_preview(false);
+                    self.screen.status = None;
+                    self.screen.frame = None;
+                    self.screen.error = None;
                 }
                 return Task::batch([self.open_selected_chat(), iced::widget::operation::focus("composer")]);
             }
-            Msg::NewBot => self.create = Some(CreateForm::default()),
+            Msg::NewBot => {
+                self.create = Some(CreateForm::default());
+                return iced::widget::operation::focus("create-name");
+            }
             Msg::Composer(action) => {
                 let is_edit = action.is_edit();
                 self.composer.perform(action);
@@ -421,9 +433,15 @@ impl App {
                     && let Some(n) = self.selected.clone()
                 {
                     self.send(Command::ScreenStatus { profile: n });
+                } else {
+                    self.maybe_preview(false);
                 }
             }
-            Msg::DetailsTab(t) => self.details_tab = t,
+            Msg::DetailsTab(t) => {
+                self.details_tab = t;
+                let running = self.screen.status.as_ref().is_some_and(|s| s.running);
+                self.maybe_preview(running);
+            }
             Msg::WakeScreen => {
                 if let Some(n) = self.selected.clone() {
                     self.screen.connecting = true;
@@ -436,12 +454,21 @@ impl App {
                 self.screen.mode = ScreenMode::Watching;
                 self.screen.connecting = true;
                 self.screen.error = None;
-                self.screen.frame = None;
-                let viewer = self.screen.viewer_id.clone();
-                self.send(Command::ScreenWatch { profile: name.clone(), viewer_id: viewer.clone() });
+                let reuse = self.screen.previewing.as_deref() == Some(name.as_str()) && self.screen.frame.is_some();
+                self.screen.previewing = None;
+                if reuse {
+                    self.screen.connecting = false;
+                } else {
+                    self.screen.frame = None;
+                    let viewer = self.screen.viewer_id.clone();
+                    self.send(Command::ScreenWatch { profile: name.clone(), viewer_id: viewer });
+                }
                 if take_over {
-                    // Lease after the viewer id exists (on ScreenObserved).
                     self.screen.mode = ScreenMode::Control;
+                    // With a reused stream the viewer id exists now; else lease on ScreenObserved.
+                    if reuse && let Some(v) = self.screen.viewer_id.clone() {
+                        self.send(Command::TakeControl { profile: name, viewer_id: v });
+                    }
                 }
             }
             Msg::CloseScreen => self.close_screen(),
@@ -452,22 +479,13 @@ impl App {
                 }
             }
             Msg::HandBack => return self.hand_back(),
-            Msg::ScreenMove(p) => {
-                if self.screen.mode == ScreenMode::Control
-                    && let Some((x, y)) = view_to_fb((p.x, p.y), self.screen_view_size, self.screen.frame_size)
-                {
-                    self.screen.last_pointer = (x, y);
-                    self.send(Command::ScreenInput(rfb::pointer_event(self.screen.buttons, x, y)));
-                }
-            }
-            Msg::ScreenPress | Msg::ScreenRelease => {
+            Msg::ScreenBytes(msgs) => {
                 if self.screen.mode == ScreenMode::Control {
-                    self.screen.buttons = if matches!(msg, Msg::ScreenPress) { 1 } else { 0 };
-                    let (x, y) = self.screen.last_pointer;
-                    self.send(Command::ScreenInput(rfb::pointer_event(self.screen.buttons, x, y)));
+                    for m in msgs {
+                        self.send(Command::ScreenInput(m));
+                    }
                 }
             }
-            Msg::ScreenSize(w, h) => self.screen_view_size = (w, h),
             Msg::OpenSettings(p) => self.settings_open = Some(p),
             Msg::CloseSettings => self.settings_open = None,
             Msg::ToggleWallpaper => {
@@ -534,14 +552,33 @@ impl App {
         Task::none()
     }
 
+    /// Watch the selected Bot's screen as a small live preview in the details pane.
+    fn maybe_preview(&mut self, running: bool) {
+        let Some(sel) = self.selected.clone() else { return };
+        let want = running && self.details_open && self.details_tab == DetailsTab::Computer && self.screen.mode == ScreenMode::Closed;
+        if want && !self.screen.previewing.as_ref().is_some_and(|p| p == &sel) {
+            self.screen.previewing = Some(sel.clone());
+            self.screen.frame = None;
+            self.send(Command::ScreenWatch { profile: sel, viewer_id: self.screen.viewer_id.clone() });
+        } else if !want && self.screen.previewing.is_some() && self.screen.mode == ScreenMode::Closed {
+            self.screen.previewing = None;
+            self.send(Command::ScreenClose);
+        }
+    }
+
     fn close_screen(&mut self) {
         if self.screen.mode == ScreenMode::Control {
             let _ = self.hand_back();
         }
-        self.send(Command::ScreenClose);
         self.screen.mode = ScreenMode::Closed;
-        self.screen.frame = None;
         self.screen.connecting = false;
+        self.screen.previewing = None;
+        let running = self.screen.status.as_ref().is_some_and(|s| s.running);
+        self.maybe_preview(running);
+        if self.screen.previewing.is_none() {
+            self.send(Command::ScreenClose);
+            self.screen.frame = None;
+        }
     }
 
     fn hand_back(&mut self) -> Task<Msg> {
@@ -694,10 +731,12 @@ impl App {
             NetEvent::Screen { profile, status } => {
                 if self.selected.as_deref() == Some(&profile) || self.screen.profile.as_deref() == Some(&profile) {
                     self.screen.connecting = self.screen.connecting && self.screen.mode != ScreenMode::Closed;
+                    let running = status.running;
                     self.screen.status = Some(status);
                     if self.screen.mode == ScreenMode::Closed {
                         self.screen.profile = Some(profile);
                     }
+                    self.maybe_preview(running);
                 }
             }
             NetEvent::ScreenObserved { profile, viewer_id } => {
@@ -775,17 +814,8 @@ impl App {
         if let keyboard::Event::ModifiersChanged(m) = ev {
             self.modifiers = m;
         }
-        // Keys go to the Bot screen while the user holds control.
+        // Keys go to the Bot screen (through its input layer) while the user holds control.
         if self.screen.mode == ScreenMode::Control {
-            match &ev {
-                keyboard::Event::KeyPressed { key, text, modifiers, .. } => {
-                    if let Some(ks) = keysym_for(key, text.as_deref(), *modifiers) {
-                        self.send(Command::ScreenInput(rfb::key_event(true, ks)));
-                        self.send(Command::ScreenInput(rfb::key_event(false, ks)));
-                    }
-                }
-                _ => {}
-            }
             return Task::none();
         }
         let keyboard::Event::KeyPressed { key, modifiers, .. } = ev else { return Task::none() };
@@ -801,8 +831,11 @@ impl App {
                     self.details_open = false;
                 }
             }
+            Key::Named(Named::Tab) if self.create.is_some() || matches!(self.phase, Phase::SignIn(_)) => {
+                return if modifiers.shift() { iced::widget::operation::focus_previous() } else { iced::widget::operation::focus_next() };
+            }
             Key::Character(",") if modifiers.command() => self.settings_open = Some(SettingsPane::General),
-            Key::Character("n") if modifiers.command() && matches!(self.phase, Phase::Main) => self.create = Some(CreateForm::default()),
+            Key::Character("n") if modifiers.command() && matches!(self.phase, Phase::Main) => return self.update(Msg::NewBot),
             Key::Character(d) if modifiers.command() && d.len() == 1 && d.as_bytes()[0].is_ascii_digit() => {
                 let i = (d.as_bytes()[0] - b'1') as usize;
                 if let Some(b) = self.visible_bots().get(i) {

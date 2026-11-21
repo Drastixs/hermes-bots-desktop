@@ -5,6 +5,7 @@ mod avatar;
 mod icons;
 mod model;
 mod net;
+mod screen_input;
 mod signin;
 mod store;
 mod theme;

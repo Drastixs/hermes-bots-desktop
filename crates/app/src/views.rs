@@ -8,7 +8,7 @@ use crate::model::*;
 use crate::net::ConnState;
 use crate::theme::{self, c};
 use iced::widget::{
-    Space, button, center, column, container, image, markdown, mouse_area, opaque, row, scrollable, sensor, stack, text,
+    Space, button, center, column, container, image, markdown, mouse_area, opaque, row, scrollable, stack, text,
     text_editor, text_input,
 };
 use iced::{Alignment, Color, ContentFit, Element, Fill, Length, Padding, Shrink};
@@ -63,7 +63,7 @@ pub fn view(app: &App) -> El<'_> {
     // Hermes wallpaper, dimmed, under everything.
     if app.settings.show_wallpaper {
         layers.push(
-            container(image(app.wallpaper.clone()).content_fit(ContentFit::Cover).width(Fill).height(Fill).opacity(0.55))
+            container(image(app.wallpaper.clone()).content_fit(ContentFit::Cover).width(Fill).height(Fill).opacity(0.55_f32))
                 .width(Fill)
                 .height(Fill)
                 .style(theme::solid(c::BG, 0.0))
@@ -111,6 +111,7 @@ fn sign_in<'a>(app: &'a App, st: &'a SignInState) -> El<'a> {
         Space::new().height(8),
         text("Gateway address").size(13).font(theme::MEDIUM).color(c::TEXT_2),
         text_input("https://hermes.example.net", &st.url_input)
+            .id("gateway-url")
             .on_input_maybe((!busy).then_some(Msg::UrlInput as fn(String) -> Msg))
             .on_submit(Msg::SignInPressed)
             .padding([10, 12])
@@ -437,7 +438,6 @@ fn transcript<'a>(app: &'a App, bot: &'a Bot, ch: &'a Chat) -> El<'a> {
     }
     scrollable(container(col.max_width(TRANSCRIPT_MAX)).center_x(Fill))
         .id("transcript")
-        .anchor_bottom()
         .height(Fill)
         .style(theme::scroll)
         .into()
@@ -760,12 +760,9 @@ fn screen_full(app: &App) -> El<'_> {
         .into(),
         (Some(f), _) => {
             let img = image(f.clone()).content_fit(ContentFit::Contain).filter_method(image::FilterMethod::Linear).width(Fill).height(Fill);
-            let area = mouse_area(img)
-                .on_move(Msg::ScreenMove)
-                .on_press(Msg::ScreenPress)
-                .on_release(Msg::ScreenRelease)
-                .interaction(if control { iced::mouse::Interaction::Crosshair } else { iced::mouse::Interaction::default() });
-            sensor(area).on_resize(|s| Msg::ScreenSize(s.width, s.height)).into()
+            let layer = iced::widget::canvas(crate::screen_input::ScreenInput { fb: app.screen.frame_size, enabled: control }).width(Fill).height(Fill);
+            stack![img, layer].into()
+
         }
         (None, _) => center(column![spinner(app.phase_t), muted(if app.online() { "Connecting to the Bot's screen…" } else { "Reconnecting…" })].spacing(10).align_x(Alignment::Center)).into(),
     };
@@ -921,7 +918,7 @@ fn create_view(f: &CreateForm) -> El<'_> {
     let mut col = column![
         row![avatar(color, BotStatus::Idle, 0.0, 48.0, false), column![heading("Create a new Bot", 18.0), muted("A Bot has one job, its own memory and its own computer.")].spacing(2)].spacing(14).align_y(Alignment::Center),
         text("Name").size(13).font(theme::MEDIUM).color(c::TEXT_2),
-        text_input("For example: Research Buddy", &f.title).on_input(Msg::CreateTitle).padding([9, 12]).size(14).style(theme::input),
+        text_input("For example: Research Buddy", &f.title).id("create-name").on_input(Msg::CreateTitle).on_submit(Msg::CreateSubmit).padding([9, 12]).size(14).style(theme::input),
         row![faint("Profile id:"), text(if f.name.is_empty() { "—".to_string() } else { f.name.clone() }).size(12).font(theme::MONO).color(c::TEXT_2)].spacing(6),
         text("Job").size(13).font(theme::MEDIUM).color(c::TEXT_2),
         text_input("What should this Bot do?", &f.description).on_input(Msg::CreateDesc).on_submit(Msg::CreateSubmit).padding([9, 12]).size(14).style(theme::input),
