@@ -1,0 +1,36 @@
+[workspace]
+resolver = "3"
+members = ["crates/hermes-api", "crates/mock-hermes", "crates/app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/Drastixs/hermes-bots-desktop"
+rust-version = "1.88"
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "process", "fs", "signal"] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
+futures = "0.3"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "http2"] }
+url = "2"
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+axum = { version = "0.8", features = ["ws"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 2
