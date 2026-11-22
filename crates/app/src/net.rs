@@ -21,20 +21,54 @@ use tokio::sync::mpsc;
 #[derive(Debug, Clone)]
 pub enum Command {
     RefreshBots,
-    OpenChat { profile: String },
-    Send { profile: String, session_id: String, text: String },
-    Stop { profile: String, session_id: String, generation: Option<i64> },
+    OpenChat {
+        profile: String,
+    },
+    Send {
+        profile: String,
+        session_id: String,
+        text: String,
+    },
+    Stop {
+        profile: String,
+        session_id: String,
+        generation: Option<i64>,
+    },
     /// `rpc_id`: set for a legacy server request (answered in place); None for a canonical `approval.request` event.
-    Approve { session_id: String, request_id: String, choice: String, rpc_id: Option<Value>, generation: Option<i64> },
-    ScreenStatus { profile: String },
-    ScreenStart { profile: String },
-    ScreenWatch { profile: String, viewer_id: Option<String> },
+    Approve {
+        session_id: String,
+        request_id: String,
+        choice: String,
+        rpc_id: Option<Value>,
+        generation: Option<i64>,
+    },
+    ScreenStatus {
+        profile: String,
+    },
+    ScreenStart {
+        profile: String,
+    },
+    ScreenWatch {
+        profile: String,
+        viewer_id: Option<String>,
+    },
     ScreenClose,
-    TakeControl { profile: String, viewer_id: String },
-    HandBack { profile: String, viewer_id: String },
+    TakeControl {
+        profile: String,
+        viewer_id: String,
+    },
+    HandBack {
+        profile: String,
+        viewer_id: String,
+    },
     /// Raw RFB client messages (key and pointer events).
     ScreenInput(Vec<u8>),
-    CreateBot { name: String, title: String, description: String, color: String },
+    CreateBot {
+        name: String,
+        title: String,
+        description: String,
+        color: String,
+    },
     SignOut,
 }
 
@@ -46,20 +80,45 @@ pub enum NetEvent {
     Connection(ConnState),
     Me(Me),
     Bots(Vec<Profile>),
-    ChatOpened { profile: String, chat: SessionOpen },
-    ChatError { profile: String, message: String },
+    ChatOpened {
+        profile: String,
+        chat: SessionOpen,
+    },
+    ChatError {
+        profile: String,
+        message: String,
+    },
     Gateway(GatewayEvent),
     ServerRequest(ServerRequest),
-    SendFailed { profile: String, message: String },
-    Screen { profile: String, status: DisplayStatus },
-    ScreenObserved { profile: String, viewer_id: String },
+    SendFailed {
+        profile: String,
+        message: String,
+    },
+    Screen {
+        profile: String,
+        status: DisplayStatus,
+    },
+    ScreenObserved {
+        profile: String,
+        viewer_id: String,
+    },
     ScreenRfb(RfbEvent),
-    ScreenError { profile: String, message: String },
-    Lease { profile: String, lease: DisplayLease },
-    BotCreated { name: String },
+    ScreenError {
+        profile: String,
+        message: String,
+    },
+    Lease {
+        profile: String,
+        lease: DisplayLease,
+    },
+    BotCreated {
+        name: String,
+    },
     CreateFailed(String),
     /// The session cannot be refreshed; the user must sign in again.
-    SignedOut { expired: bool },
+    SignedOut {
+        expired: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,7 +126,10 @@ pub enum ConnState {
     Connecting,
     Online,
     /// Lost; the worker retries in `retry_in` seconds.
-    Offline { reason: String, retry_in: u64 },
+    Offline {
+        reason: String,
+        retry_in: u64,
+    },
 }
 
 /// The tokens and gateway the worker runs with.
@@ -149,9 +211,7 @@ impl Worker {
     async fn handle(&mut self, cmd: Command) {
         let Some(gw) = self.gw.clone() else {
             match cmd {
-                Command::Send { profile, .. } => {
-                    self.emit(NetEvent::SendFailed { profile, message: "You are offline. The message was not sent.".into() }).await
-                }
+                Command::Send { profile, .. } => self.emit(NetEvent::SendFailed { profile, message: "You are offline. The message was not sent.".into() }).await,
                 Command::SignOut => self.sign_out().await,
                 Command::ScreenInput(_) => {}
                 _ => {}
@@ -339,8 +399,7 @@ async fn worker(session: Session, out: fmpsc::Sender<NetEvent>) {
         w.sessions.clear();
         let delay = backoff.next_delay();
         tracing::info!("gateway connection lost: {close_reason}");
-        w.emit(NetEvent::Connection(ConnState::Offline { reason: "The live connection dropped".into(), retry_in: delay.as_secs().max(1) }))
-            .await;
+        w.emit(NetEvent::Connection(ConnState::Offline { reason: "The live connection dropped".into(), retry_in: delay.as_secs().max(1) })).await;
         tokio::time::sleep(delay).await;
     }
 }

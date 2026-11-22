@@ -60,8 +60,5 @@ impl<Message> canvas::Program<Message> for Avatar {
 }
 
 pub fn avatar<'a, M: 'a>(color: Color, status: BotStatus, phase: f32, size: f32, show_dot: bool) -> Element<'a, M> {
-    canvas::Canvas::new(Avatar { color, status, phase, show_dot })
-        .width(Length::Fixed(size))
-        .height(Length::Fixed(size))
-        .into()
+    canvas::Canvas::new(Avatar { color, status, phase, show_dot }).width(Length::Fixed(size)).height(Length::Fixed(size)).into()
 }

@@ -111,12 +111,23 @@ fn humanise(s: &str) -> String {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
-    User { text: String },
-    Assistant { text: String, streaming: bool },
+    User {
+        text: String,
+    },
+    Assistant {
+        text: String,
+        streaming: bool,
+    },
     /// Tool activity of one turn, shown as one foldable group.
-    Activity { tools: Vec<ToolCall>, expanded: bool },
+    Activity {
+        tools: Vec<ToolCall>,
+        expanded: bool,
+    },
     /// The Bot asks the user to take over its screen (for example to sign in).
-    ComputerCard { text: String, resolved: bool },
+    ComputerCard {
+        text: String,
+        resolved: bool,
+    },
     Approval {
         request_id: String,
         rpc_id: Option<serde_json::Value>,
@@ -126,7 +137,10 @@ pub enum Item {
         choices: Vec<String>,
         answer: Option<String>,
     },
-    Notice { text: String, error: bool },
+    Notice {
+        text: String,
+        error: bool,
+    },
 }
 
 #[derive(Debug, Clone, Default)]
@@ -214,9 +228,7 @@ impl Chat {
 
     fn finish_stream(&mut self, final_text: Option<String>) {
         // Find the open streaming item (it may not be last if a tool started after text).
-        if let Some(Item::Assistant { text, streaming }) =
-            self.items.iter_mut().rev().find(|i| matches!(i, Item::Assistant { streaming: true, .. }))
-        {
+        if let Some(Item::Assistant { text, streaming }) = self.items.iter_mut().rev().find(|i| matches!(i, Item::Assistant { streaming: true, .. })) {
             if let Some(t) = final_text.filter(|t| !t.is_empty()) {
                 *text = truncate(&t, MAX_TEXT);
             }
@@ -256,14 +268,7 @@ impl Chat {
                 {
                     *streaming = false;
                 }
-                let call = ToolCall {
-                    id: tool_id.clone(),
-                    name: name.clone(),
-                    context: context.clone().unwrap_or_default(),
-                    summary: String::new(),
-                    state: ToolState::Running,
-                    percent: None,
-                };
+                let call = ToolCall { id: tool_id.clone(), name: name.clone(), context: context.clone().unwrap_or_default(), summary: String::new(), state: ToolState::Running, percent: None };
                 let label = call.label();
                 self.push_tool(call);
                 if name == "computer_use" {
@@ -382,18 +387,9 @@ pub fn truncate(s: &str, max: usize) -> String {
 
 /// One line preview (roster rows).
 pub fn one_line(s: &str, max_chars: usize) -> String {
-    let flat: String = s
-        .lines()
-        .map(|l| l.trim().trim_start_matches(['#', '*', '-', '>', ' ']).trim())
-        .filter(|l| !l.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
+    let flat: String = s.lines().map(|l| l.trim().trim_start_matches(['#', '*', '-', '>', ' ']).trim()).filter(|l| !l.is_empty()).collect::<Vec<_>>().join(" ");
     let flat: String = flat.replace("**", "").replace('`', "").split_whitespace().collect::<Vec<_>>().join(" ");
-    if flat.chars().count() <= max_chars {
-        flat
-    } else {
-        format!("{}…", flat.chars().take(max_chars).collect::<String>())
-    }
+    if flat.chars().count() <= max_chars { flat } else { format!("{}…", flat.chars().take(max_chars).collect::<String>()) }
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -506,10 +502,11 @@ mod tests {
     #[test]
     fn history_mapping() {
         let open: SessionOpen = serde_json::from_value(serde_json::json!({
-            "session_id": "s", "messages": [
-                {"role": "user", "text": "hi"}, {"role": "tool", "name": "web_search", "text": "r"},
-                {"role": "assistant", "text": "yo"}, {"role": "system", "text": "hidden"}, {"role": "assistant", "text": "  "}
-            ]})).unwrap();
+        "session_id": "s", "messages": [
+            {"role": "user", "text": "hi"}, {"role": "tool", "name": "web_search", "text": "r"},
+            {"role": "assistant", "text": "yo"}, {"role": "system", "text": "hidden"}, {"role": "assistant", "text": "  "}
+        ]}))
+        .unwrap();
         let c = Chat::from_open(&open);
         assert_eq!(c.items.len(), 3);
     }
@@ -534,7 +531,8 @@ mod tests {
         let p: Profile = serde_json::from_value(serde_json::json!({
             "name": "scout", "ui_meta": {"hermes-bots": {"title": "Scout", "color": "#e0a14a"}},
             "canonical_session": {"id": "c", "resolved_id": "c", "preview": "p", "last_active": 1.0}
-        })).unwrap();
+        }))
+        .unwrap();
         let b = Bot::from_profile(&p);
         assert_eq!(b.title, "Scout");
         assert_eq!(b.preview, "p");

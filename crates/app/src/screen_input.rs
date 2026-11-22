@@ -33,11 +33,7 @@ impl canvas::Program<Msg> for ScreenInput {
         if !self.enabled {
             return None;
         }
-        let map = |cursor: mouse::Cursor| {
-            cursor
-                .position_in(bounds)
-                .and_then(|p| crate::model::view_to_fb((p.x, p.y), (bounds.width, bounds.height), self.fb))
-        };
+        let map = |cursor: mouse::Cursor| cursor.position_in(bounds).and_then(|p| crate::model::view_to_fb((p.x, p.y), (bounds.width, bounds.height), self.fb));
         let out = match event {
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
                 let (x, y) = map(cursor)?;

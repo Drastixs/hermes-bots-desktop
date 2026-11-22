@@ -248,29 +248,14 @@ async fn sign_in(http: &reqwest::Client, base: &str) -> Value {
     let p = Pkce::generate();
     assert_eq!(s256(p.verifier.expose()), p.challenge);
     let mut u = url::Url::parse(&format!("{base}/auth/native/authorize")).unwrap();
-    u.query_pairs_mut()
-        .append_pair("code_challenge", &p.challenge)
-        .append_pair("code_challenge_method", "S256")
-        .append_pair("redirect_uri", "http://127.0.0.1:1/callback")
-        .append_pair("state", "st");
-    let r = http
-        .get(u)
-        .send()
-        .await
-        .unwrap();
+    u.query_pairs_mut().append_pair("code_challenge", &p.challenge).append_pair("code_challenge_method", "S256").append_pair("redirect_uri", "http://127.0.0.1:1/callback").append_pair("state", "st");
+    let r = http.get(u).send().await.unwrap();
     assert_eq!(r.status(), 303);
     let loc = r.headers()["location"].to_str().unwrap().to_string();
     let url = url::Url::parse(&loc).unwrap();
     let q: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
     assert_eq!(q["state"], "st");
-    http.post(format!("{base}/auth/native/token"))
-        .json(&json!({"code": q["code"], "code_verifier": p.verifier.expose()}))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap()
+    http.post(format!("{base}/auth/native/token")).json(&json!({"code": q["code"], "code_verifier": p.verifier.expose()})).send().await.unwrap().json().await.unwrap()
 }
 
 #[test]

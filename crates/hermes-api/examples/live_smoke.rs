@@ -35,8 +35,14 @@ async fn main() -> anyhow::Result<()> {
         loop {
             let item = match tokio::time::timeout_at(deadline, rx.recv()).await {
                 Ok(Some(i)) => i,
-                Ok(None) => { println!("socket ended"); break; }
-                Err(_) => { println!("no reply within 180 s"); break; }
+                Ok(None) => {
+                    println!("socket ended");
+                    break;
+                }
+                Err(_) => {
+                    println!("no reply within 180 s");
+                    break;
+                }
             };
             match item {
                 Incoming::Event(e) if e.session_id.as_deref() == Some(chat.session_id.as_str()) => match e.typed() {
@@ -49,7 +55,10 @@ async fn main() -> anyhow::Result<()> {
                     }
                     _ => {}
                 },
-                Incoming::Closed { code, .. } => { println!("closed {code:?}"); break; }
+                Incoming::Closed { code, .. } => {
+                    println!("closed {code:?}");
+                    break;
+                }
                 _ => {}
             }
         }

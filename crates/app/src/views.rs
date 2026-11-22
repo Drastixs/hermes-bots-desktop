@@ -7,10 +7,7 @@ use crate::icons::{self, icon};
 use crate::model::*;
 use crate::net::ConnState;
 use crate::theme::{self, c};
-use iced::widget::{
-    Space, button, center, column, container, image, markdown, mouse_area, opaque, row, scrollable, stack, text,
-    text_editor, text_input,
-};
+use iced::widget::{Space, button, center, column, container, image, markdown, mouse_area, opaque, row, scrollable, stack, text, text_editor, text_input};
 use iced::{Alignment, Color, ContentFit, Element, Fill, Length, Padding, Shrink};
 
 type El<'a> = Element<'a, Msg>;
@@ -33,10 +30,7 @@ fn heading<'a>(s: impl text::IntoFragment<'a>, size: f32) -> text::Text<'a> {
 }
 
 fn icon_btn<'a>(ic: char, msg: Msg, tip: &'a str) -> El<'a> {
-    let b = button(container(icon(ic).size(17).color(c::TEXT_2)).center(Length::Fixed(32.0)))
-        .padding(0)
-        .style(theme::btn_ghost)
-        .on_press(msg);
+    let b = button(container(icon(ic).size(17).color(c::TEXT_2)).center(Length::Fixed(32.0))).padding(0).style(theme::btn_ghost).on_press(msg);
     iced::widget::tooltip(b, container(text(tip).size(12)).padding([4, 8]).style(theme::dialog), iced::widget::tooltip::Position::Bottom).into()
 }
 
@@ -62,13 +56,7 @@ pub fn view(app: &App) -> El<'_> {
     let mut layers: Vec<El> = vec![];
     // Hermes wallpaper, dimmed, under everything.
     if app.settings.show_wallpaper {
-        layers.push(
-            container(image(app.wallpaper.clone()).content_fit(ContentFit::Cover).width(Fill).height(Fill).opacity(0.55_f32))
-                .width(Fill)
-                .height(Fill)
-                .style(theme::solid(c::BG, 0.0))
-                .into(),
-        );
+        layers.push(container(image(app.wallpaper.clone()).content_fit(ContentFit::Cover).width(Fill).height(Fill).opacity(0.55_f32)).width(Fill).height(Fill).style(theme::solid(c::BG, 0.0)).into());
     } else {
         layers.push(container(Space::new()).width(Fill).height(Fill).style(theme::solid(c::BG, 0.0)).into());
     }
@@ -102,12 +90,9 @@ fn modal<'a>(content: El<'a>, on_close: Msg) -> El<'a> {
 fn sign_in<'a>(app: &'a App, st: &'a SignInState) -> El<'a> {
     let busy = st.checking || st.waiting_browser;
     let mut col = column![
-        row![
-            container(image(image::Handle::from_bytes(theme::APP_ICON_PNG)).width(44).height(44)),
-            column![heading("Hermes Bots", 26.0), muted("Your team of always-on Bots.")].spacing(2)
-        ]
-        .spacing(14)
-        .align_y(Alignment::Center),
+        row![container(image(image::Handle::from_bytes(theme::APP_ICON_PNG)).width(44).height(44)), column![heading("Hermes Bots", 26.0), muted("Your team of always-on Bots.")].spacing(2)]
+            .spacing(14)
+            .align_y(Alignment::Center),
         Space::new().height(8),
         text("Gateway address").size(13).font(theme::MEDIUM).color(c::TEXT_2),
         text_input("https://hermes.example.net", &st.url_input)
@@ -183,13 +168,9 @@ fn main_view(app: &App) -> El<'_> {
         ConnState::Offline { reason, retry_in } => {
             col = col.push(
                 container(
-                    row![
-                        icon(icons::WIFI_OFF).color(c::TEXT_2),
-                        t("You're offline."),
-                        muted(format!("{reason}. Trying again in {retry_in} s. The app reconnects on its own.")),
-                    ]
-                    .spacing(10)
-                    .align_y(Alignment::Center),
+                    row![icon(icons::WIFI_OFF).color(c::TEXT_2), t("You're offline."), muted(format!("{reason}. Trying again in {retry_in} s. The app reconnects on its own.")),]
+                        .spacing(10)
+                        .align_y(Alignment::Center),
                 )
                 .padding([7, 14])
                 .width(Fill)
@@ -197,12 +178,7 @@ fn main_view(app: &App) -> El<'_> {
             )
         }
         ConnState::Connecting if app.bots_loaded => {
-            col = col.push(
-                container(row![spinner(app.phase_t), muted("Reconnecting…")].spacing(10).align_y(Alignment::Center))
-                    .padding([7, 14])
-                    .width(Fill)
-                    .style(theme::solid(c::SURFACE, 0.0)),
-            )
+            col = col.push(container(row![spinner(app.phase_t), muted("Reconnecting…")].spacing(10).align_y(Alignment::Center)).padding([7, 14]).width(Fill).style(theme::solid(c::SURFACE, 0.0)))
         }
         _ => {}
     }
@@ -233,8 +209,16 @@ fn sidebar(app: &App) -> El<'_> {
     if !app.bots_loaded {
         for _ in 0..6 {
             list = list.push(
-                container(row![container(Space::new()).width(36).height(36).style(theme::solid(c::SURFACE, 11.0)), column![container(Space::new()).width(110).height(10).style(theme::solid(c::SURFACE, 4.0)), container(Space::new()).width(170).height(8).style(theme::solid(c::SURFACE, 4.0))].spacing(8)].spacing(12).align_y(Alignment::Center))
-                    .padding([10, 10]),
+                container(
+                    row![
+                        container(Space::new()).width(36).height(36).style(theme::solid(c::SURFACE, 11.0)),
+                        column![container(Space::new()).width(110).height(10).style(theme::solid(c::SURFACE, 4.0)), container(Space::new()).width(170).height(8).style(theme::solid(c::SURFACE, 4.0))]
+                            .spacing(8)
+                    ]
+                    .spacing(12)
+                    .align_y(Alignment::Center),
+                )
+                .padding([10, 10]),
             );
         }
     } else if bots.is_empty() {
@@ -262,28 +246,23 @@ fn sidebar(app: &App) -> El<'_> {
         container(text(me.chars().next().unwrap_or('U').to_uppercase().to_string()).size(13).font(theme::SEMIBOLD).color(c::ON_ACCENT))
             .center(Length::Fixed(28.0))
             .style(theme::solid(c::TEXT_2, 14.0)),
-        column![text(me).size(13).font(theme::MEDIUM).color(c::TEXT), row![container(Space::new()).width(7).height(7).style(theme::solid(conn_dot, 4.0)), faint(gateway_host(app))].spacing(6).align_y(Alignment::Center)].spacing(2),
+        column![
+            text(me).size(13).font(theme::MEDIUM).color(c::TEXT),
+            row![container(Space::new()).width(7).height(7).style(theme::solid(conn_dot, 4.0)), faint(gateway_host(app))].spacing(6).align_y(Alignment::Center)
+        ]
+        .spacing(2),
         Space::new().width(Fill),
         icon_btn(icons::SETTINGS, Msg::OpenSettings(SettingsPane::General), "Settings (Ctrl+,)"),
     ]
     .spacing(10)
     .align_y(Alignment::Center);
 
-    container(
-        column![
-            header,
-            search,
-            scrollable(list).height(Fill).style(theme::scroll),
-            container(Space::new()).width(Fill).height(1).style(theme::solid(c::BORDER, 0.0)),
-            footer
-        ]
-        .spacing(12),
-    )
-    .padding([14, 12])
-    .width(SIDEBAR_W)
-    .height(Fill)
-    .style(theme::sidebar)
-    .into()
+    container(column![header, search, scrollable(list).height(Fill).style(theme::scroll), container(Space::new()).width(Fill).height(1).style(theme::solid(c::BORDER, 0.0)), footer].spacing(12))
+        .padding([14, 12])
+        .width(SIDEBAR_W)
+        .height(Fill)
+        .style(theme::sidebar)
+        .into()
 }
 
 fn gateway_host(app: &App) -> String {
@@ -310,12 +289,9 @@ fn bot_row<'a>(app: &'a App, b: &'a Bot) -> El<'a> {
     if unread {
         name_row = name_row.push(container(Space::new()).width(8).height(8).style(theme::solid(c::ACCENT, 4.0)));
     }
-    let content = row![
-        avatar(b.color, status.clone(), app.phase_t, 36.0, true),
-        column![name_row, text(line).size(12).color(line_color).wrapping(text::Wrapping::None)].spacing(3).width(Fill),
-    ]
-    .spacing(12)
-    .align_y(Alignment::Center);
+    let content = row![avatar(b.color, status.clone(), app.phase_t, 36.0, true), column![name_row, text(line).size(12).color(line_color).wrapping(text::Wrapping::None)].spacing(3).width(Fill),]
+        .spacing(12)
+        .align_y(Alignment::Center);
     button(content).width(Fill).padding([9, 10]).style(theme::btn_row(selected)).on_press(Msg::SelectBot(b.name.clone())).into()
 }
 
@@ -324,10 +300,15 @@ fn bot_row<'a>(app: &'a App, b: &'a Bot) -> El<'a> {
 fn chat_view(app: &App) -> El<'_> {
     let Some(bot) = app.selected_bot() else {
         let msg: El = if app.bots_loaded && app.bots.is_empty() {
-            column![avatar(c::ACCENT, BotStatus::Idle, 0.0, 72.0, false), heading("Create your first Bot", 20.0), muted("A Bot has one job, its own memory and its own computer."), primary("New Bot", Some(Msg::NewBot))]
-                .spacing(14)
-                .align_x(Alignment::Center)
-                .into()
+            column![
+                avatar(c::ACCENT, BotStatus::Idle, 0.0, 72.0, false),
+                heading("Create your first Bot", 20.0),
+                muted("A Bot has one job, its own memory and its own computer."),
+                primary("New Bot", Some(Msg::NewBot))
+            ]
+            .spacing(14)
+            .align_x(Alignment::Center)
+            .into()
         } else {
             column![spinner(app.phase_t), muted("Loading your Bots…")].spacing(10).align_x(Alignment::Center).into()
         };
@@ -344,10 +325,14 @@ fn chat_view(app: &App) -> El<'_> {
         BotStatus::Idle => faint(one_line(&bot.description, 80)).into(),
     };
     let header = row![
-        button(row![avatar(bot.color, status.clone(), app.phase_t, 34.0, false), column![text(bot.title.as_str()).size(16).font(theme::SEMIBOLD).color(c::TEXT), status_line].spacing(1)].spacing(12).align_y(Alignment::Center))
-            .padding([4, 6])
-            .style(theme::btn_ghost)
-            .on_press(Msg::ToggleDetails),
+        button(
+            row![avatar(bot.color, status.clone(), app.phase_t, 34.0, false), column![text(bot.title.as_str()).size(16).font(theme::SEMIBOLD).color(c::TEXT), status_line].spacing(1)]
+                .spacing(12)
+                .align_y(Alignment::Center)
+        )
+        .padding([4, 6])
+        .style(theme::btn_ghost)
+        .on_press(Msg::ToggleDetails),
         Space::new().width(Fill),
         computer_button(screen_running, app.details_open),
     ]
@@ -378,21 +363,9 @@ fn chat_view(app: &App) -> El<'_> {
     };
     let busy = chat.is_some_and(|c| c.busy);
     let can_send = app.online() && chat.is_some_and(|c| c.session_id.is_some());
-    let placeholder = if !app.online() {
-        "You're offline".to_string()
-    } else {
-        format!("Message {}", bot.title)
-    };
-    let editor = text_editor(&app.composer)
-        .id("composer")
-        .placeholder(placeholder)
-        .on_action(Msg::Composer)
-        .padding([10, 4])
-        .size(14)
-        .min_height(24)
-        .max_height(200)
-        .style(theme::editor)
-        .key_binding(|kp| {
+    let placeholder = if !app.online() { "You're offline".to_string() } else { format!("Message {}", bot.title) };
+    let editor =
+        text_editor(&app.composer).id("composer").placeholder(placeholder).on_action(Msg::Composer).padding([10, 4]).size(14).min_height(24).max_height(200).style(theme::editor).key_binding(|kp| {
             if matches!(kp.key, iced::keyboard::Key::Named(iced::keyboard::key::Named::Enter)) && !kp.modifiers.shift() {
                 Some(text_editor::Binding::Custom(Msg::Send))
             } else {
@@ -408,18 +381,26 @@ fn chat_view(app: &App) -> El<'_> {
             .on_press_maybe((can_send && !app.composer.text().trim().is_empty()).then_some(Msg::Send))
             .into()
     };
-    let composer = container(row![editor, action].spacing(8).align_y(Alignment::End)).padding(Padding { top: 4.0, bottom: 6.0, left: 12.0, right: 6.0 }).style(theme::composer).max_width(TRANSCRIPT_MAX);
+    let composer =
+        container(row![editor, action].spacing(8).align_y(Alignment::End)).padding(Padding { top: 4.0, bottom: 6.0, left: 12.0, right: 6.0 }).style(theme::composer).max_width(TRANSCRIPT_MAX);
     let mut bottom = column![].spacing(8).align_x(Alignment::Center);
     if busy {
         let txt = chat.map(|c| c.status_text.clone()).filter(|s| !s.is_empty()).unwrap_or_else(|| "Working".into());
-        bottom = bottom.push(container(row![avatar(bot.color, BotStatus::Thinking, app.phase_t, 16.0, false), faint(format!("{txt}…"))].spacing(8).align_y(Alignment::Center)).max_width(TRANSCRIPT_MAX).width(Fill));
+        bottom = bottom.push(
+            container(row![avatar(bot.color, BotStatus::Thinking, app.phase_t, 16.0, false), faint(format!("{txt}…"))].spacing(8).align_y(Alignment::Center)).max_width(TRANSCRIPT_MAX).width(Fill),
+        );
     }
     bottom = bottom.push(composer);
-    container(column![header, container(Space::new()).width(Fill).height(1).style(theme::solid(c::BORDER, 0.0)), container(body).height(Fill).width(Fill), container(bottom).padding(Padding { top: 6.0, bottom: 16.0, left: 24.0, right: 24.0 }).center_x(Fill)])
-        .width(Fill)
-        .height(Fill)
-        .style(theme::pane)
-        .into()
+    container(column![
+        header,
+        container(Space::new()).width(Fill).height(1).style(theme::solid(c::BORDER, 0.0)),
+        container(body).height(Fill).width(Fill),
+        container(bottom).padding(Padding { top: 6.0, bottom: 16.0, left: 24.0, right: 24.0 }).center_x(Fill)
+    ])
+    .width(Fill)
+    .height(Fill)
+    .style(theme::pane)
+    .into()
 }
 
 fn computer_button<'a>(running: bool, open: bool) -> El<'a> {
@@ -436,11 +417,7 @@ fn transcript<'a>(app: &'a App, bot: &'a Bot, ch: &'a Chat) -> El<'a> {
     for (i, item) in ch.items.iter().enumerate() {
         col = col.push(item_view(app, bot, i, item));
     }
-    scrollable(container(col.max_width(TRANSCRIPT_MAX)).center_x(Fill))
-        .id("transcript")
-        .height(Fill)
-        .style(theme::scroll)
-        .into()
+    scrollable(container(col.max_width(TRANSCRIPT_MAX)).center_x(Fill)).id("transcript").height(Fill).style(theme::scroll).into()
 }
 
 fn md_settings() -> markdown::Settings {
@@ -477,16 +454,24 @@ fn item_view<'a>(app: &'a App, bot: &'a Bot, i: usize, item: &'a Item) -> El<'a>
         Item::Activity { tools, expanded } => activity_view(app, i, tools, *expanded),
         Item::ComputerCard { text: s, resolved } => {
             let mut col = column![
-                row![icon(icons::MONITOR).color(c::ACCENT), text("Computer").size(14).font(theme::SEMIBOLD).color(c::TEXT), Space::new().width(Fill), container(text(if *resolved { "Done" } else { "Action needed" }).size(11).font(theme::SEMIBOLD)).padding([2, 8]).style(theme::pill(if *resolved { c::GREEN } else { c::AMBER }))]
-                    .spacing(8)
-                    .align_y(Alignment::Center),
+                row![
+                    icon(icons::MONITOR).color(c::ACCENT),
+                    text("Computer").size(14).font(theme::SEMIBOLD).color(c::TEXT),
+                    Space::new().width(Fill),
+                    container(text(if *resolved { "Done" } else { "Action needed" }).size(11).font(theme::SEMIBOLD)).padding([2, 8]).style(theme::pill(if *resolved { c::GREEN } else { c::AMBER }))
+                ]
+                .spacing(8)
+                .align_y(Alignment::Center),
                 muted(s.as_str()),
             ]
             .spacing(8);
             if !resolved {
                 col = col.push(
                     row![
-                        button(row![icon(icons::HAND).color(c::ON_ACCENT), text("Take over").size(14).font(theme::SEMIBOLD)].spacing(8).align_y(Alignment::Center)).padding([8, 14]).style(theme::btn_primary).on_press(Msg::OpenScreen { take_over: true }),
+                        button(row![icon(icons::HAND).color(c::ON_ACCENT), text("Take over").size(14).font(theme::SEMIBOLD)].spacing(8).align_y(Alignment::Center))
+                            .padding([8, 14])
+                            .style(theme::btn_primary)
+                            .on_press(Msg::OpenScreen { take_over: true }),
                         secondary("Watch", Some(Msg::OpenScreen { take_over: false })),
                     ]
                     .spacing(8),
@@ -515,11 +500,13 @@ fn item_view<'a>(app: &'a App, bot: &'a Bot, i: usize, item: &'a Item) -> El<'a>
                     r = r.push(button(text("Deny").size(14)).padding([9, 16]).style(theme::btn_danger).on_press(Msg::Approve(i, "deny".into())));
                     col = col.push(r)
                 }
-                Some(a) => col = col.push(faint(match a.as_str() {
-                    "deny" => "Denied",
-                    "settled" => "Answered",
-                    _ => "Allowed",
-                })),
+                Some(a) => {
+                    col = col.push(faint(match a.as_str() {
+                        "deny" => "Denied",
+                        "settled" => "Answered",
+                        _ => "Allowed",
+                    }))
+                }
             }
             container(col).padding(14).width(Fill).style(theme::card_accent).into()
         }
@@ -638,10 +625,11 @@ fn activity_view<'a>(app: &'a App, i: usize, tools: &'a [ToolCall], expanded: bo
             }
             list = list.push(r);
         }
-        col = col.push(container(list).padding(Padding { top: 6.0, bottom: 8.0, left: 14.0, right: 12.0 }).style(|_: &iced::Theme| container::Style {
-            border: iced::Border { color: c::BORDER, width: 0.0, radius: 0.0.into() },
-            ..Default::default()
-        }));
+        col = col.push(
+            container(list)
+                .padding(Padding { top: 6.0, bottom: 8.0, left: 14.0, right: 12.0 })
+                .style(|_: &iced::Theme| container::Style { border: iced::Border { color: c::BORDER, width: 0.0, radius: 0.0.into() }, ..Default::default() }),
+        );
     }
     container(col).padding(Padding { left: 36.0, ..Default::default() }).into()
 }
@@ -700,32 +688,41 @@ fn computer_tab<'a>(app: &'a App, bot: &'a Bot) -> El<'a> {
         };
         button(container(inner).width(Fill).height(205).style(theme::screen_frame(false))).padding(0).style(theme::btn_ghost).on_press(Msg::OpenScreen { take_over: false }).into()
     } else {
-        container(
-            center(
-                column![
-                    icon(icons::MONITOR).size(30).color(c::TEXT_3),
-                    t(format!("{}'s computer is asleep", bot.title)),
-                    if app.screen.connecting { Element::from(row![spinner(app.phase_t), muted("Waking up…")].spacing(8)) } else { secondary("Wake up", Some(Msg::WakeScreen)).into() }
-                ]
-                .spacing(10)
-                .align_x(Alignment::Center),
-            ),
-        )
+        container(center(
+            column![
+                icon(icons::MONITOR).size(30).color(c::TEXT_3),
+                t(format!("{}'s computer is asleep", bot.title)),
+                if app.screen.connecting { Element::from(row![spinner(app.phase_t), muted("Waking up…")].spacing(8)) } else { secondary("Wake up", Some(Msg::WakeScreen)).into() }
+            ]
+            .spacing(10)
+            .align_x(Alignment::Center),
+        ))
         .width(Fill)
         .height(205)
         .style(theme::screen_frame(false))
         .into()
     };
     let mut col = column![
-        row![text("Computer").size(14).font(theme::SEMIBOLD).color(c::TEXT), Space::new().width(Fill), container(text(state_text).size(11).font(theme::SEMIBOLD)).padding([2, 8]).style(theme::pill(if running { c::ACCENT } else { c::TEXT_3 }))].align_y(Alignment::Center),
+        row![
+            text("Computer").size(14).font(theme::SEMIBOLD).color(c::TEXT),
+            Space::new().width(Fill),
+            container(text(state_text).size(11).font(theme::SEMIBOLD)).padding([2, 8]).style(theme::pill(if running { c::ACCENT } else { c::TEXT_3 }))
+        ]
+        .align_y(Alignment::Center),
         preview,
     ]
     .spacing(10);
     if running {
         col = col.push(
             row![
-                button(row![icon(icons::MAXIMIZE).color(c::TEXT), text("Open").size(13)].spacing(6).align_y(Alignment::Center)).padding([8, 12]).style(theme::btn_secondary).on_press(Msg::OpenScreen { take_over: false }),
-                button(row![icon(icons::HAND).color(c::ON_ACCENT), text("Take over").size(13).font(theme::SEMIBOLD)].spacing(6).align_y(Alignment::Center)).padding([8, 12]).style(theme::btn_primary).on_press(Msg::OpenScreen { take_over: true }),
+                button(row![icon(icons::MAXIMIZE).color(c::TEXT), text("Open").size(13)].spacing(6).align_y(Alignment::Center))
+                    .padding([8, 12])
+                    .style(theme::btn_secondary)
+                    .on_press(Msg::OpenScreen { take_over: false }),
+                button(row![icon(icons::HAND).color(c::ON_ACCENT), text("Take over").size(13).font(theme::SEMIBOLD)].spacing(6).align_y(Alignment::Center))
+                    .padding([8, 12])
+                    .style(theme::btn_primary)
+                    .on_press(Msg::OpenScreen { take_over: true }),
             ]
             .spacing(8),
         );
@@ -751,7 +748,10 @@ fn screen_full(app: &App) -> El<'_> {
         text(format!("{title}'s computer")).size(15).font(theme::SEMIBOLD).color(c::TEXT),
         container(text(state).size(11).font(theme::SEMIBOLD)).padding([2, 8]).style(theme::pill(if control { c::ACCENT } else { c::TEXT_2 })),
         Space::new().width(Fill),
-        button(row![icon(icons::MINIMIZE).color(c::TEXT_2), text("Exit full screen").size(13)].spacing(6).align_y(Alignment::Center)).padding([6, 10]).style(theme::btn_ghost).on_press(Msg::CloseScreen),
+        button(row![icon(icons::MINIMIZE).color(c::TEXT_2), text("Exit full screen").size(13)].spacing(6).align_y(Alignment::Center))
+            .padding([6, 10])
+            .style(theme::btn_ghost)
+            .on_press(Msg::CloseScreen),
     ]
     .spacing(10)
     .align_y(Alignment::Center)
@@ -759,22 +759,28 @@ fn screen_full(app: &App) -> El<'_> {
 
     let screen_inner: El = match (&app.screen.frame, &app.screen.error) {
         (_, Some(e)) if app.screen.frame.is_none() => center(
-            column![icon(icons::CIRCLE_ALERT).size(30).color(c::RED), t(format!("Couldn't reach {title}'s computer")), muted(e.as_str()), secondary("Retry", Some(Msg::OpenScreen { take_over: false }))]
-                .spacing(10)
-                .align_x(Alignment::Center),
+            column![
+                icon(icons::CIRCLE_ALERT).size(30).color(c::RED),
+                t(format!("Couldn't reach {title}'s computer")),
+                muted(e.as_str()),
+                secondary("Retry", Some(Msg::OpenScreen { take_over: false }))
+            ]
+            .spacing(10)
+            .align_x(Alignment::Center),
         )
         .into(),
         (Some(f), _) => {
             let img = image(f.clone()).content_fit(ContentFit::Contain).filter_method(image::FilterMethod::Linear).width(Fill).height(Fill);
             let layer = iced::widget::canvas(crate::screen_input::ScreenInput { fb: app.screen.frame_size, enabled: control }).width(Fill).height(Fill);
             stack![img, layer].into()
-
         }
         (None, _) => center(column![spinner(app.phase_t), muted(if app.online() { "Connecting to the Bot's screen…" } else { "Reconnecting…" })].spacing(10).align_x(Alignment::Center)).into(),
     };
     let mut layers: Vec<El> = vec![container(screen_inner).width(Fill).height(Fill).padding(2).style(theme::screen_frame(control)).into()];
     if app.screen.connecting && app.screen.frame.is_some() {
-        layers.push(container(container(row![spinner(app.phase_t), muted("Reconnecting…")].spacing(8)).padding([6, 12]).style(theme::floating_pill)).width(Fill).padding(12).align_x(Alignment::Center).into());
+        layers.push(
+            container(container(row![spinner(app.phase_t), muted("Reconnecting…")].spacing(8)).padding([6, 12]).style(theme::floating_pill)).width(Fill).padding(12).align_x(Alignment::Center).into(),
+        );
     }
     let pill: El = if control {
         container(
@@ -782,7 +788,10 @@ fn screen_full(app: &App) -> El<'_> {
                 container(Space::new()).width(8).height(8).style(theme::solid(c::ACCENT, 4.0)),
                 t("You're in control"),
                 faint(format!("{title} is paused")),
-                button(row![icon(icons::CHECK).color(c::ON_ACCENT), text("I'm done").size(14).font(theme::SEMIBOLD)].spacing(6).align_y(Alignment::Center)).padding([7, 14]).style(theme::btn_primary).on_press(Msg::HandBack),
+                button(row![icon(icons::CHECK).color(c::ON_ACCENT), text("I'm done").size(14).font(theme::SEMIBOLD)].spacing(6).align_y(Alignment::Center))
+                    .padding([7, 14])
+                    .style(theme::btn_primary)
+                    .on_press(Msg::HandBack),
             ]
             .spacing(12)
             .align_y(Alignment::Center),
@@ -812,10 +821,14 @@ fn screen_full(app: &App) -> El<'_> {
     let mut col = column![top];
     if control {
         col = col.push(
-            container(row![icon(icons::HAND).color(c::ON_ACCENT), text(format!("You're in control. {title} is paused. Keys and clicks go to its screen.")).size(13).font(theme::MEDIUM).color(c::ON_ACCENT)].spacing(8).align_y(Alignment::Center))
-                .padding([7, 14])
-                .width(Fill)
-                .style(theme::solid(c::ACCENT, 0.0)),
+            container(
+                row![icon(icons::HAND).color(c::ON_ACCENT), text(format!("You're in control. {title} is paused. Keys and clicks go to its screen.")).size(13).font(theme::MEDIUM).color(c::ON_ACCENT)]
+                    .spacing(8)
+                    .align_y(Alignment::Center),
+            )
+            .padding([7, 14])
+            .width(Fill)
+            .style(theme::solid(c::ACCENT, 0.0)),
         );
     }
     col = col.push(container(stack(layers)).padding(12).width(Fill).height(Fill));
@@ -859,7 +872,12 @@ fn settings_view(app: &App, pane: SettingsPane) -> El<'_> {
         SettingsPane::General => column![
             heading("General", 16.0),
             row![
-                column![t(if me.display_name.is_empty() { "Signed in".to_string() } else { me.display_name.clone() }), faint(format!("via {}", if me.provider.is_empty() { "gateway sign-in" } else { me.provider.as_str() }))].spacing(2).width(Fill),
+                column![
+                    t(if me.display_name.is_empty() { "Signed in".to_string() } else { me.display_name.clone() }),
+                    faint(format!("via {}", if me.provider.is_empty() { "gateway sign-in" } else { me.provider.as_str() }))
+                ]
+                .spacing(2)
+                .width(Fill),
                 button(row![icon(icons::LOG_OUT).color(c::RED), text("Sign out").size(13)].spacing(6).align_y(Alignment::Center)).padding([8, 12]).style(theme::btn_danger).on_press(Msg::SignOut)
             ]
             .align_y(Alignment::Center),
@@ -895,12 +913,19 @@ fn settings_view(app: &App, pane: SettingsPane) -> El<'_> {
         .spacing(14)
         .into(),
     };
-    container(row![nav, container(Space::new()).width(1).height(Fill).style(theme::solid(c::BORDER, 0.0)), container(scrollable(content).style(theme::scroll)).padding(Padding { left: 8.0, ..Default::default() }).width(Fill)].spacing(16))
-        .padding(22)
-        .width(720)
-        .height(480)
-        .style(theme::dialog)
-        .into()
+    container(
+        row![
+            nav,
+            container(Space::new()).width(1).height(Fill).style(theme::solid(c::BORDER, 0.0)),
+            container(scrollable(content).style(theme::scroll)).padding(Padding { left: 8.0, ..Default::default() }).width(Fill)
+        ]
+        .spacing(16),
+    )
+    .padding(22)
+    .width(720)
+    .height(480)
+    .style(theme::dialog)
+    .into()
 }
 
 // ---------------------------------------------------------------- create Bot
@@ -914,15 +939,14 @@ fn create_view(f: &CreateForm) -> El<'_> {
         swatches = swatches.push(
             button(container(if sel { Element::from(icon(icons::CHECK).size(13).color(c::ON_ACCENT)) } else { Space::new().into() }).center(Length::Fixed(26.0)).style(theme::solid(col, 13.0)))
                 .padding(2)
-                .style(move |_, _| button::Style {
-                    border: iced::Border { color: if sel { c::TEXT } else { Color::TRANSPARENT }, width: 2.0, radius: 16.0.into() },
-                    ..Default::default()
-                })
+                .style(move |_, _| button::Style { border: iced::Border { color: if sel { c::TEXT } else { Color::TRANSPARENT }, width: 2.0, radius: 16.0.into() }, ..Default::default() })
                 .on_press(Msg::CreateColor(i)),
         );
     }
     let mut col = column![
-        row![avatar(color, BotStatus::Idle, 0.0, 48.0, false), column![heading("Create a new Bot", 18.0), muted("A Bot has one job, its own memory and its own computer.")].spacing(2)].spacing(14).align_y(Alignment::Center),
+        row![avatar(color, BotStatus::Idle, 0.0, 48.0, false), column![heading("Create a new Bot", 18.0), muted("A Bot has one job, its own memory and its own computer.")].spacing(2)]
+            .spacing(14)
+            .align_y(Alignment::Center),
         text("Name").size(13).font(theme::MEDIUM).color(c::TEXT_2),
         text_input("For example: Research Buddy", &f.title).id("create-name").on_input(Msg::CreateTitle).on_submit(Msg::CreateSubmit).padding([9, 12]).size(14).style(theme::input),
         row![faint("Profile id:"), text(if f.name.is_empty() { "—".to_string() } else { f.name.clone() }).size(12).font(theme::MONO).color(c::TEXT_2)].spacing(6),

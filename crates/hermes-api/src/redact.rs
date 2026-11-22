@@ -60,14 +60,8 @@ mod tests {
 
     #[test]
     fn redacts_tickets() {
-        assert_eq!(
-            redact_url("wss://h/api/ws?ticket=abc&x=1"),
-            "wss://h/api/ws?ticket=***&x=1"
-        );
-        assert_eq!(
-            redact_url("wss://h/api/display/ws?display_ticket=abc"),
-            "wss://h/api/display/ws?display_ticket=***"
-        );
+        assert_eq!(redact_url("wss://h/api/ws?ticket=abc&x=1"), "wss://h/api/ws?ticket=***&x=1");
+        assert_eq!(redact_url("wss://h/api/display/ws?display_ticket=abc"), "wss://h/api/display/ws?display_ticket=***");
         assert_eq!(redact_url("http://h/a?mytoken=1"), "http://h/a?mytoken=1");
     }
 

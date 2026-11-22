@@ -323,9 +323,7 @@ impl Decoder {
             out.reserve(64 * 1024);
             let before_in = self.zlib.total_in();
             let before_out = self.zlib.total_out();
-            self.zlib
-                .decompress_vec(&input[consumed..], &mut out, FlushDecompress::Sync)
-                .map_err(|e| RfbError::Protocol(format!("zlib: {e}")))?;
+            self.zlib.decompress_vec(&input[consumed..], &mut out, FlushDecompress::Sync).map_err(|e| RfbError::Protocol(format!("zlib: {e}")))?;
             consumed += (self.zlib.total_in() - before_in) as usize;
             let produced = self.zlib.total_out() - before_out;
             if consumed >= input.len() && out.len() < out.capacity() {
@@ -465,19 +463,12 @@ impl RfbSession {
     /// messages) go through the returned session's `input` channel. The gateway drops input from a
     /// viewer that does not hold the lease, so the client may always send.
     pub async fn connect(url: &str, events: mpsc::Sender<RfbEvent>) -> Result<RfbSession, RfbError> {
-        let req = url
-            .into_client_request()
-            .map_err(|e| RfbError::Protocol(crate::redact::redact_url(&e.to_string())))?;
-        let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default()
-            .max_message_size(Some(64 << 20))
-            .max_frame_size(Some(64 << 20));
-        let (ws, _) = tokio::time::timeout(
-            Duration::from_secs(15),
-            tokio_tungstenite::connect_async_with_config(req, Some(config), true),
-        )
-        .await
-        .map_err(|_| RfbError::Protocol("connect timed out".into()))?
-        .map_err(|e| RfbError::Protocol(crate::redact::redact_url(&e.to_string()).chars().take(200).collect()))?;
+        let req = url.into_client_request().map_err(|e| RfbError::Protocol(crate::redact::redact_url(&e.to_string())))?;
+        let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default().max_message_size(Some(64 << 20)).max_frame_size(Some(64 << 20));
+        let (ws, _) = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::connect_async_with_config(req, Some(config), true))
+            .await
+            .map_err(|_| RfbError::Protocol("connect timed out".into()))?
+            .map_err(|e| RfbError::Protocol(crate::redact::redact_url(&e.to_string()).chars().take(200).collect()))?;
         let (mut sink, mut stream) = ws.split();
         let (in_tx, in_rx) = mpsc::channel::<Vec<u8>>(64);
         let (out_tx, mut out_rx) = mpsc::channel::<Vec<u8>>(256);
@@ -555,11 +546,7 @@ pub async fn run_decoder(mut r: ChunkReader, out: mpsc::Sender<Vec<u8>>, events:
 /// Map a character or a named key to an X11 keysym.
 pub fn keysym_for_char(c: char) -> u32 {
     let cp = c as u32;
-    if (0x20..=0x7e).contains(&cp) || (0xa0..=0xff).contains(&cp) {
-        cp
-    } else {
-        0x0100_0000 | cp
-    }
+    if (0x20..=0x7e).contains(&cp) || (0xa0..=0xff).contains(&cp) { cp } else { 0x0100_0000 | cp }
 }
 
 pub mod keysym {

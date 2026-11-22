@@ -12,11 +12,7 @@ mod theme;
 mod views;
 
 fn main() -> iced::Result {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn,hermes_bots=info".into()),
-        )
-        .init();
+    tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn,hermes_bots=info".into())).init();
     if std::env::args().any(|a| a == "--version" || a == "-V") {
         println!("hermes-bots {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
@@ -37,10 +33,7 @@ fn main() -> iced::Result {
             size: iced::Size::new(1280.0, 800.0),
             min_size: Some(iced::Size::new(900.0, 600.0)),
             icon,
-            platform_specific: iced::window::settings::PlatformSpecific {
-                application_id: "io.github.drastixs.HermesBots".into(),
-                ..Default::default()
-            },
+            platform_specific: iced::window::settings::PlatformSpecific { application_id: "io.github.drastixs.HermesBots".into(), ..Default::default() },
             ..Default::default()
         })
         .antialiasing(true)

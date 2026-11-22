@@ -49,7 +49,10 @@ pub enum Incoming {
     Event(GatewayEvent),
     Request(ServerRequest),
     /// The socket closed. `code` is the WebSocket close code if any.
-    Closed { code: Option<u16>, reason: String },
+    Closed {
+        code: Option<u16>,
+        reason: String,
+    },
 }
 
 type Pending = Arc<Mutex<HashMap<u64, oneshot::Sender<Result<Value, GatewayError>>>>>;
@@ -117,9 +120,7 @@ impl Gateway {
     /// Open a gateway socket at an explicit URL (used by tests and by `connect`).
     pub async fn connect_url(url: &str) -> Result<(Gateway, mpsc::Receiver<Incoming>), GatewayError> {
         let req = url.into_client_request().map_err(|e| GatewayError::Connect(redact_url(&e.to_string())))?;
-        let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default()
-            .max_message_size(Some(MAX_FRAME_BYTES))
-            .max_frame_size(Some(MAX_FRAME_BYTES));
+        let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default().max_message_size(Some(MAX_FRAME_BYTES)).max_frame_size(Some(MAX_FRAME_BYTES));
         let connect = tokio_tungstenite::connect_async_with_config(req, Some(config), true);
         let (ws, _) = tokio::time::timeout(Duration::from_secs(15), connect)
             .await
@@ -260,12 +261,7 @@ impl Gateway {
 
     /// Find the canonical "Bot Chat" session of a profile.
     pub async fn find_bot_chat(&self, profile: &str) -> Result<Option<SessionRow>, GatewayError> {
-        let list: SessionList = self
-            .call_as(
-                "session.list",
-                json!({"profile": profile, "title": BOT_CHAT_TITLE, "limit": 50, "include_hidden": true}),
-            )
-            .await?;
+        let list: SessionList = self.call_as("session.list", json!({"profile": profile, "title": BOT_CHAT_TITLE, "limit": 50, "include_hidden": true})).await?;
         Ok(list.sessions.into_iter().find(|s| s.title == BOT_CHAT_TITLE))
     }
 
@@ -273,15 +269,9 @@ impl Gateway {
     pub async fn open_bot_chat(&self, profile: &str) -> Result<SessionOpen, GatewayError> {
         if let Some(row) = self.find_bot_chat(profile).await? {
             let sid = row.resolved_id.clone().filter(|s| !s.is_empty()).unwrap_or(row.id.clone());
-            return self
-                .call_as("session.resume", json!({"session_id": sid, "profile": profile, "display_projection": true}))
-                .await;
+            return self.call_as("session.resume", json!({"session_id": sid, "profile": profile, "display_projection": true})).await;
         }
-        self.call_as(
-            "session.create",
-            json!({"profile": profile, "title": BOT_CHAT_TITLE, "hidden": true, "follow_profile_config": true}),
-        )
-        .await
+        self.call_as("session.create", json!({"profile": profile, "title": BOT_CHAT_TITLE, "hidden": true, "follow_profile_config": true})).await
     }
 
     /// Send a message. Canonical gateways need a client `submission_id` (idempotency key) and
@@ -327,11 +317,7 @@ impl Gateway {
     }
 
     pub async fn lease_acquire(&self, profile: &str, viewer_id: &str) -> Result<LeaseResult, GatewayError> {
-        self.call_as(
-            "display.lease.acquire",
-            json!({"profile": profile, "viewer_id": viewer_id, "reason": "sign-in"}),
-        )
-        .await
+        self.call_as("display.lease.acquire", json!({"profile": profile, "viewer_id": viewer_id, "reason": "sign-in"})).await
     }
 
     pub async fn lease_release(&self, profile: &str, viewer_id: &str) -> Result<LeaseResult, GatewayError> {
@@ -371,10 +357,7 @@ mod tests {
         assert_eq!(f, ParsedFrame::Response(3, Ok(json!({"ok": true}))));
         let f = parse_frame(r#"{"jsonrpc":"2.0","id":4,"error":{"code":4000,"message":"bad"}}"#).unwrap();
         assert!(matches!(f, ParsedFrame::Response(4, Err(GatewayError::Rpc { code: 4000, .. }))));
-        let f = parse_frame(
-            r#"{"jsonrpc":"2.0","method":"event","params":{"type":"message.delta","session_id":"s","payload":{"text":"x"}}}"#,
-        )
-        .unwrap();
+        let f = parse_frame(r#"{"jsonrpc":"2.0","method":"event","params":{"type":"message.delta","session_id":"s","payload":{"text":"x"}}}"#).unwrap();
         match f {
             ParsedFrame::Event(e) => {
                 assert_eq!(e.kind, "message.delta");

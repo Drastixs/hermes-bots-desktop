@@ -57,10 +57,7 @@ pub fn authorize_url(base: &Url, pkce: &Pkce, redirect_uri: &str, state: &str, p
         if let Some(p) = provider.filter(|p| !p.is_empty()) {
             q.append_pair("provider", p);
         }
-        q.append_pair("code_challenge", &pkce.challenge)
-            .append_pair("code_challenge_method", "S256")
-            .append_pair("redirect_uri", redirect_uri)
-            .append_pair("state", state);
+        q.append_pair("code_challenge", &pkce.challenge).append_pair("code_challenge_method", "S256").append_pair("redirect_uri", redirect_uri).append_pair("state", state);
     }
     url
 }
@@ -157,11 +154,7 @@ impl LoopbackListener {
                 }
                 let result = parse_callback(&target, expected_state);
                 let body = if result.is_ok() { DONE_PAGE } else { FAIL_PAGE };
-                let resp = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    body.len(),
-                    body
-                );
+                let resp = format!("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
                 let _ = sock.write_all(resp.as_bytes()).await;
                 let _ = sock.shutdown().await;
                 return result;

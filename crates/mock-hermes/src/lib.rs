@@ -34,14 +34,14 @@ pub const VERSION: &str = "0.23.3";
 #[derive(Default)]
 pub struct Inner {
     pending: HashMap<String, (String, String, String)>, // broker -> (challenge, redirect, state)
-    codes: HashMap<String, String>,                    // code -> challenge
+    codes: HashMap<String, String>,                     // code -> challenge
     access: HashSet<String>,
     refresh: HashSet<String>,
     tickets: HashMap<String, Instant>,
     display_tickets: HashMap<String, (String, Instant)>, // ticket -> (profile, minted)
-    sessions: HashMap<String, String>,                  // live session id -> profile
-    stored: HashMap<String, Vec<Value>>,                // profile -> extra transcript rows
-    lease: HashMap<String, (String, String, i64)>,      // profile -> (holder, viewer_id, epoch)
+    sessions: HashMap<String, String>,                   // live session id -> profile
+    stored: HashMap<String, Vec<Value>>,                 // profile -> extra transcript rows
+    lease: HashMap<String, (String, String, i64)>,       // profile -> (holder, viewer_id, epoch)
     pub screens: HashMap<String, screen::Screen>,
     screens_running: HashSet<String>,
     created: Vec<Value>,
@@ -170,9 +170,7 @@ async fn authorize(State(m): State<Shared>, Query(q): Query<AuthorizeQ>) -> Resp
     if q.code_challenge.is_empty() {
         return (StatusCode::BAD_REQUEST, Json(json!({"detail": "code_challenge required"}))).into_response();
     }
-    let ok_redirect = url::Url::parse(&q.redirect_uri)
-        .ok()
-        .is_some_and(|u| u.scheme() == "http" && matches!(u.host_str(), Some("127.0.0.1") | Some("[::1]")));
+    let ok_redirect = url::Url::parse(&q.redirect_uri).ok().is_some_and(|u| u.scheme() == "http" && matches!(u.host_str(), Some("127.0.0.1") | Some("[::1]")));
     if !ok_redirect {
         return (StatusCode::BAD_REQUEST, Json(json!({"detail": "native redirect_uri host must be a loopback IP literal (127.0.0.1 / ::1)"}))).into_response();
     }
@@ -197,11 +195,7 @@ async fn login_page(Query(q): Query<HashMap<String, String>>) -> Html<String> {
 }
 
 async fn approve_form(State(m): State<Shared>, body: String) -> Response {
-    let broker = body
-        .split('&')
-        .find_map(|kv| kv.strip_prefix("broker="))
-        .unwrap_or_default()
-        .to_string();
+    let broker = body.split('&').find_map(|kv| kv.strip_prefix("broker=")).unwrap_or_default().to_string();
     finish_login(&m, &broker).await
 }
 
@@ -263,11 +257,7 @@ async fn check_bearer(m: &Shared, headers: &HeaderMap) -> Result<(), Response> {
     if m.offline().await {
         return Err(StatusCode::SERVICE_UNAVAILABLE.into_response());
     }
-    let tok = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer ").or_else(|| v.strip_prefix("bearer ")))
-        .unwrap_or("");
+    let tok = headers.get("authorization").and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ").or_else(|| v.strip_prefix("bearer "))).unwrap_or("");
     if tok.is_empty() || !m.inner.lock().await.access.contains(tok) {
         return Err((StatusCode::UNAUTHORIZED, Json(json!({"error": "session_expired", "detail": "Unauthorized", "reason": "token", "login_url": "/login"}))).into_response());
     }
@@ -371,9 +361,7 @@ async fn run_gateway(m: Shared, socket: WebSocket) {
     let (tx, mut rx) = mpsc::channel::<Value>(512);
     let mut events = m.events.subscribe();
     let mut kill = m.drop_tx.subscribe();
-    let _ = tx
-        .send(json!({"jsonrpc": "2.0", "method": "event", "params": {"type": "gateway.ready", "payload": {"skin": {}, "change_events": true, "heartbeat": true, "replay_epoch": "mock"}}}))
-        .await;
+    let _ = tx.send(json!({"jsonrpc": "2.0", "method": "event", "params": {"type": "gateway.ready", "payload": {"skin": {}, "change_events": true, "heartbeat": true, "replay_epoch": "mock"}}})).await;
     let writer = tokio::spawn(async move {
         loop {
             tokio::select! {
@@ -445,9 +433,26 @@ async fn handle_rpc(m: &Shared, method: &str, p: &Value) -> Result<Value, (i64, 
         "prompt.submit" => {
             // Canonical gateway rules (gateway/session_controls.py `submission`): a closed key set
             // (an own-home `profile` is dropped first) and a required client submission id.
-            const ALLOWED: [&str; 18] = ["session_id", "text", "submission_id", "input_id", "queued", "attachments", "finite",
-                "unattended", "surface", "voice_context", "interrupted", "voice_turn", "display_kind", "title_preview",
-                "turn_author", "api_text", "model_override", "clarify_batch"];
+            const ALLOWED: [&str; 18] = [
+                "session_id",
+                "text",
+                "submission_id",
+                "input_id",
+                "queued",
+                "attachments",
+                "finite",
+                "unattended",
+                "surface",
+                "voice_context",
+                "interrupted",
+                "voice_turn",
+                "display_kind",
+                "title_preview",
+                "turn_author",
+                "api_text",
+                "model_override",
+                "clarify_batch",
+            ];
             let keys: Vec<&String> = p.as_object().map(|o| o.keys().filter(|k| k.as_str() != "profile").collect()).unwrap_or_default();
             if keys.iter().any(|k| !ALLOWED.contains(&k.as_str())) {
                 return Err((4001, "invalid_params".into()));
@@ -579,8 +584,12 @@ async fn stream_reply(m: Shared, sid: String, profile: String, text: String) {
     m.emit("thinking.delta", &sid, json!({"text": "Planning the steps."}));
     let login = tools.iter().any(|t| t.0 == "computer_use");
     if text.to_lowercase().contains("clean up") {
-        m.emit("approval.request", &sid, json!({"kind": "approval", "prompt_id": format!("ap-{}", m.next()), "execution_generation": 1,
-            "command": "rm -rf ./build/cache", "description": "Delete the build cache folder", "choices": ["once", "deny", "session", "always"]}));
+        m.emit(
+            "approval.request",
+            &sid,
+            json!({"kind": "approval", "prompt_id": format!("ap-{}", m.next()), "execution_generation": 1,
+            "command": "rm -rf ./build/cache", "description": "Delete the build cache folder", "choices": ["once", "deny", "session", "always"]}),
+        );
         m.emit("status.update", &sid, json!({"kind": "idle", "text": "Needs your approval"}));
         return;
     }

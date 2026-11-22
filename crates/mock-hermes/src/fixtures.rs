@@ -16,7 +16,14 @@ pub struct BotFixture {
 pub const BOTS: [BotFixture; 7] = [
     BotFixture { name: "default", title: "Atlas", description: "Chief of staff. Plans the day and hands work to the team.", color: "#4a84fe", preview: "Your morning brief is ready.", working: false },
     BotFixture { name: "scout", title: "Scout", description: "Watches job boards and finds roles that fit.", color: "#e0a14a", preview: "Found 3 new roles that match your filters.", working: true },
-    BotFixture { name: "inbox", title: "Inbox Zero", description: "Sorts email, drafts replies, flags what needs you.", color: "#5fc88f", preview: "12 emails sorted. 2 need a reply from you.", working: false },
+    BotFixture {
+        name: "inbox",
+        title: "Inbox Zero",
+        description: "Sorts email, drafts replies, flags what needs you.",
+        color: "#5fc88f",
+        preview: "12 emails sorted. 2 need a reply from you.",
+        working: false,
+    },
     BotFixture { name: "scribe", title: "Scribe", description: "Writes and edits posts in your voice.", color: "#c86fd8", preview: "Draft 2 of the launch post is ready to review.", working: false },
     BotFixture { name: "ledger", title: "Ledger", description: "Tracks spending and reconciles receipts.", color: "#5fb8c8", preview: "October is reconciled. 1 receipt is missing.", working: false },
     BotFixture { name: "sentinel", title: "Sentinel", description: "Monitors services and opens tickets on alerts.", color: "#e06a6a", preview: "All 14 checks are green.", working: true },
@@ -74,8 +81,7 @@ pub fn reply_for(text: &str, bot_title: &str) -> (Vec<(&'static str, &'static st
         return (tools, msg);
     }
     let tools = vec![("web_search", "latest updates"), ("read_file", "notes/today.md"), ("terminal", "make report")];
-    let msg = format!(
-        "Done. Here is what I found:\n\n- **3 items** need your review today.\n- The weekly report is up to date.\n- Nothing is blocked.\n\nI am {bot_title}; ask me for details on any item."
-    );
+    let msg =
+        format!("Done. Here is what I found:\n\n- **3 items** need your review today.\n- The weekly report is up to date.\n- Nothing is blocked.\n\nI am {bot_title}; ask me for details on any item.");
     (tools, msg)
 }

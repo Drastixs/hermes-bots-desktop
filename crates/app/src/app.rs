@@ -418,13 +418,7 @@ impl App {
                         && answer.is_none()
                     {
                         *answer = Some(choice.clone());
-                        let cmd = Command::Approve {
-                            session_id: sid,
-                            request_id: request_id.clone(),
-                            choice,
-                            rpc_id: rpc_id.clone(),
-                            generation: generation.or(chat_gen),
-                        };
+                        let cmd = Command::Approve { session_id: sid, request_id: request_id.clone(), choice, rpc_id: rpc_id.clone(), generation: generation.or(chat_gen) };
                         self.statuses.insert(name, BotStatus::Working("Continuing".into()));
                         self.send(cmd);
                     }
@@ -543,12 +537,7 @@ impl App {
                     }
                     f.busy = true;
                     f.error = None;
-                    let cmd = Command::CreateBot {
-                        name: f.name.clone(),
-                        title: f.title.trim().to_string(),
-                        description: f.description.trim().to_string(),
-                        color: SWATCHES[f.color].to_string(),
-                    };
+                    let cmd = Command::CreateBot { name: f.name.clone(), title: f.title.trim().to_string(), description: f.description.trim().to_string(), color: SWATCHES[f.color].to_string() };
                     self.send(cmd);
                 }
             }
@@ -867,10 +856,7 @@ impl App {
 
     pub fn visible_bots(&self) -> Vec<&Bot> {
         let q = self.search.trim().to_lowercase();
-        self.bots
-            .iter()
-            .filter(|b| q.is_empty() || b.title.to_lowercase().contains(&q) || b.name.contains(&q) || b.description.to_lowercase().contains(&q))
-            .collect()
+        self.bots.iter().filter(|b| q.is_empty() || b.title.to_lowercase().contains(&q) || b.name.contains(&q) || b.description.to_lowercase().contains(&q)).collect()
     }
 }
 

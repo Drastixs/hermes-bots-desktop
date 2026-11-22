@@ -20,11 +20,7 @@ pub fn normalise_gateway(input: &str) -> Result<Url, UrlError> {
     if trimmed.is_empty() {
         return Err(UrlError::Empty);
     }
-    let with_scheme = if trimmed.contains("://") {
-        trimmed.to_string()
-    } else {
-        format!("https://{trimmed}")
-    };
+    let with_scheme = if trimmed.contains("://") { trimmed.to_string() } else { format!("https://{trimmed}") };
     let mut url = Url::parse(&with_scheme).map_err(|_| UrlError::Invalid)?;
     if url.scheme() != "http" && url.scheme() != "https" {
         return Err(UrlError::Scheme);
@@ -63,14 +59,8 @@ mod tests {
     #[test]
     fn normalises() {
         assert_eq!(normalise_gateway("hermes.example.net").unwrap().as_str(), "https://hermes.example.net/");
-        assert_eq!(
-            normalise_gateway(" http://127.0.0.1:9120/ ").unwrap().as_str(),
-            "http://127.0.0.1:9120/"
-        );
-        assert_eq!(
-            normalise_gateway("https://h.example/prefix/?x#y").unwrap().as_str(),
-            "https://h.example/prefix"
-        );
+        assert_eq!(normalise_gateway(" http://127.0.0.1:9120/ ").unwrap().as_str(), "http://127.0.0.1:9120/");
+        assert_eq!(normalise_gateway("https://h.example/prefix/?x#y").unwrap().as_str(), "https://h.example/prefix");
         assert_eq!(normalise_gateway(""), Err(UrlError::Empty));
         assert_eq!(normalise_gateway("ftp://x"), Err(UrlError::Scheme));
     }

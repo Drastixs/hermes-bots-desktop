@@ -87,12 +87,7 @@ pub struct TokenSet {
 
 impl std::fmt::Debug for TokenSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TokenSet")
-            .field("access_token", &"***")
-            .field("refresh_token", &"***")
-            .field("expires_at", &self.expires_at)
-            .field("provider", &self.provider)
-            .finish()
+        f.debug_struct("TokenSet").field("access_token", &"***").field("refresh_token", &"***").field("expires_at", &self.expires_at).field("provider", &self.provider).finish()
     }
 }
 
@@ -213,21 +208,13 @@ impl Profile {
 
     /// True when the profile is Bot-Mode managed (has a `hermes-bots` block).
     pub fn is_bot(&self) -> bool {
-        self.ui_meta
-            .as_ref()
-            .and_then(|m| m.get("hermes-bots"))
-            .is_some_and(Value::is_object)
+        self.ui_meta.as_ref().and_then(|m| m.get("hermes-bots")).is_some_and(Value::is_object)
     }
 
     /// The name shown in the roster: Bot title, then display name, then bot_title, then the profile name.
     pub fn title(&self) -> String {
         let meta_title = self.bot_meta().and_then(|m| m.title).unwrap_or_default();
-        [meta_title.as_str(), self.display_name.as_str(), self.bot_title.as_str(), self.name.as_str()]
-            .into_iter()
-            .map(str::trim)
-            .find(|s| !s.is_empty())
-            .unwrap_or("Bot")
-            .to_string()
+        [meta_title.as_str(), self.display_name.as_str(), self.bot_title.as_str(), self.name.as_str()].into_iter().map(str::trim).find(|s| !s.is_empty()).unwrap_or("Bot").to_string()
     }
 }
 
@@ -288,11 +275,7 @@ impl TranscriptMessage {
         match &self.content {
             Some(Value::String(s)) => s.clone(),
             // OpenAI-style content parts: join the text parts.
-            Some(Value::Array(parts)) => parts
-                .iter()
-                .filter_map(|p| p.get("text").and_then(Value::as_str))
-                .collect::<Vec<_>>()
-                .join("\n"),
+            Some(Value::Array(parts)) => parts.iter().filter_map(|p| p.get("text").and_then(Value::as_str)).collect::<Vec<_>>().join("\n"),
             _ => String::new(),
         }
     }
@@ -378,12 +361,7 @@ pub struct DisplayObserve {
 
 impl std::fmt::Debug for DisplayObserve {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DisplayObserve")
-            .field("status", &self.status)
-            .field("ticket", &"***")
-            .field("path", &self.path)
-            .field("viewer_id", &self.viewer_id)
-            .finish()
+        f.debug_struct("DisplayObserve").field("status", &self.status).field("ticket", &"***").field("path", &self.path).field("viewer_id", &self.viewer_id).finish()
     }
 }
 
@@ -439,21 +417,62 @@ pub struct GatewayEvent {
 pub enum Event {
     Ready,
     MessageStart,
-    MessageDelta { text: String },
-    MessageComplete { text: Option<String>, status: Option<String>, error: Option<String> },
-    ThinkingDelta { text: String },
-    ToolStart { tool_id: String, name: String, context: Option<String> },
-    ToolProgress { tool_id: String, name: String, message: Option<String>, percent: Option<i64> },
-    ToolComplete { tool_id: String, name: String, summary: Option<String>, duration_s: Option<f64>, failed: bool },
-    StatusUpdate { kind: String, text: String },
+    MessageDelta {
+        text: String,
+    },
+    MessageComplete {
+        text: Option<String>,
+        status: Option<String>,
+        error: Option<String>,
+    },
+    ThinkingDelta {
+        text: String,
+    },
+    ToolStart {
+        tool_id: String,
+        name: String,
+        context: Option<String>,
+    },
+    ToolProgress {
+        tool_id: String,
+        name: String,
+        message: Option<String>,
+        percent: Option<i64>,
+    },
+    ToolComplete {
+        tool_id: String,
+        name: String,
+        summary: Option<String>,
+        duration_s: Option<f64>,
+        failed: bool,
+    },
+    StatusUpdate {
+        kind: String,
+        text: String,
+    },
     DisplayStatus(DisplayStatus),
-    DisplayLease { profile_key: String, lease: DisplayLease },
+    DisplayLease {
+        profile_key: String,
+        lease: DisplayLease,
+    },
     SessionsChanged,
     /// Canonical gateways: an approval prompt waits for the user.
-    ApprovalRequest { prompt_id: String, command: String, description: String, choices: Vec<String>, generation: Option<i64> },
-    ApprovalSettled { prompt_id: String },
-    Notice { message: String },
-    Error { message: String },
+    ApprovalRequest {
+        prompt_id: String,
+        command: String,
+        description: String,
+        choices: Vec<String>,
+        generation: Option<i64>,
+    },
+    ApprovalSettled {
+        prompt_id: String,
+    },
+    Notice {
+        message: String,
+    },
+    Error {
+        message: String,
+    },
     Other,
 }
 
@@ -473,11 +492,7 @@ impl GatewayEvent {
                 // `null` text is a segment boundary.
                 _ => Event::Other,
             },
-            "message.complete" => Event::MessageComplete {
-                text: str_of(p, "text"),
-                status: str_of(p, "status"),
-                error: str_of(p, "error"),
-            },
+            "message.complete" => Event::MessageComplete { text: str_of(p, "text"), status: str_of(p, "status"), error: str_of(p, "error") },
             "thinking.delta" | "reasoning.delta" => match str_of(p, "text") {
                 Some(text) => Event::ThinkingDelta { text },
                 None => Event::Other,
@@ -495,9 +510,7 @@ impl GatewayEvent {
             },
             "tool.complete" => {
                 let failed = p.get("result").and_then(|r| r.get("error")).is_some_and(|e| !e.is_null())
-                    || p.get("labels").and_then(Value::as_array).is_some_and(|l| {
-                        l.iter().any(|x| x.as_str() == Some("error") || x.as_str() == Some("failed"))
-                    });
+                    || p.get("labels").and_then(Value::as_array).is_some_and(|l| l.iter().any(|x| x.as_str() == Some("error") || x.as_str() == Some("failed")));
                 Event::ToolComplete {
                     tool_id: str_of(p, "tool_id").unwrap_or_default(),
                     name: str_of(p, "name").unwrap_or_default(),
@@ -506,28 +519,20 @@ impl GatewayEvent {
                     failed,
                 }
             }
-            "status.update" => Event::StatusUpdate {
-                kind: str_of(p, "kind").unwrap_or_default(),
-                text: str_of(p, "text").unwrap_or_default(),
-            },
+            "status.update" => Event::StatusUpdate { kind: str_of(p, "kind").unwrap_or_default(), text: str_of(p, "text").unwrap_or_default() },
             "display.status" => match serde_json::from_value(p.clone()) {
                 Ok(s) => Event::DisplayStatus(s),
                 Err(_) => Event::Other,
             },
-            "display.lease" => Event::DisplayLease {
-                profile_key: str_of(p, "profile_key").unwrap_or_default(),
-                lease: p.get("lease").and_then(|l| serde_json::from_value(l.clone()).ok()).unwrap_or_default(),
-            },
+            "display.lease" => {
+                Event::DisplayLease { profile_key: str_of(p, "profile_key").unwrap_or_default(), lease: p.get("lease").and_then(|l| serde_json::from_value(l.clone()).ok()).unwrap_or_default() }
+            }
             "sessions.changed" => Event::SessionsChanged,
             "approval.request" => Event::ApprovalRequest {
                 prompt_id: str_of(p, "prompt_id").unwrap_or_default(),
                 command: str_of(p, "command").unwrap_or_default(),
                 description: str_of(p, "description").unwrap_or_default(),
-                choices: p
-                    .get("choices")
-                    .and_then(Value::as_array)
-                    .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
-                    .unwrap_or_default(),
+                choices: p.get("choices").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default(),
                 generation: p.get("execution_generation").and_then(Value::as_i64).or(self.execution_generation),
             },
             "approval.settled" => Event::ApprovalSettled { prompt_id: str_of(p, "prompt_id").unwrap_or_default() },

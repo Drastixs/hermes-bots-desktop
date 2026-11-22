@@ -52,17 +52,7 @@ pub mod c {
 }
 
 pub fn theme() -> Theme {
-    Theme::custom(
-        "Hermes Teal",
-        iced::theme::Palette {
-            background: c::BG,
-            text: c::TEXT,
-            primary: c::ACCENT,
-            success: c::GREEN,
-            warning: c::AMBER,
-            danger: c::RED,
-        },
-    )
+    Theme::custom("Hermes Teal", iced::theme::Palette { background: c::BG, text: c::TEXT, primary: c::ACCENT, success: c::GREEN, warning: c::AMBER, danger: c::RED })
 }
 
 pub fn alpha(col: Color, a: f32) -> Color {
@@ -72,16 +62,14 @@ pub fn alpha(col: Color, a: f32) -> Color {
 /// Parse `#rrggbb` (Bot colours from `ui_meta`). Falls back to the accent.
 pub fn parse_hex(s: Option<&str>) -> Color {
     let s = s.unwrap_or("").trim().trim_start_matches('#');
-    if s.len() == 6 && let Ok(v) = u32::from_str_radix(s, 16) {
+    if s.len() == 6
+        && let Ok(v) = u32::from_str_radix(s, 16)
+    {
         return Color::from_rgb8((v >> 16) as u8, (v >> 8) as u8, v as u8);
     }
     // `hsl(H S% L%)` swatches from the desktop app.
     if let Some(rest) = s.strip_prefix("hsl(").and_then(|r| r.strip_suffix(')')) {
-        let parts: Vec<f32> = rest
-            .split(|ch: char| ch == ' ' || ch == ',')
-            .filter(|p| !p.is_empty())
-            .filter_map(|p| p.trim_end_matches('%').parse().ok())
-            .collect();
+        let parts: Vec<f32> = rest.split(|ch: char| ch == ' ' || ch == ',').filter(|p| !p.is_empty()).filter_map(|p| p.trim_end_matches('%').parse().ok()).collect();
         if parts.len() == 3 {
             return hsl(parts[0], parts[1] / 100.0, parts[2] / 100.0);
         }
@@ -124,12 +112,7 @@ pub fn panel_right(_: &Theme) -> container::Style {
 }
 
 pub fn card(_: &Theme) -> container::Style {
-    container::Style {
-        background: Some(Background::Color(c::SURFACE)),
-        border: Border { color: c::BORDER, width: 1.0, radius: 12.0.into() },
-        text_color: Some(c::TEXT),
-        ..Default::default()
-    }
+    container::Style { background: Some(Background::Color(c::SURFACE)), border: Border { color: c::BORDER, width: 1.0, radius: 12.0.into() }, text_color: Some(c::TEXT), ..Default::default() }
 }
 
 pub fn card_accent(_: &Theme) -> container::Style {
@@ -155,21 +138,11 @@ pub fn scrim(_: &Theme) -> container::Style {
 }
 
 pub fn user_bubble(_: &Theme) -> container::Style {
-    container::Style {
-        background: Some(Background::Color(c::USER_BUBBLE)),
-        border: Border { color: c::BORDER, width: 1.0, radius: 14.0.into() },
-        text_color: Some(c::TEXT),
-        ..Default::default()
-    }
+    container::Style { background: Some(Background::Color(c::USER_BUBBLE)), border: Border { color: c::BORDER, width: 1.0, radius: 14.0.into() }, text_color: Some(c::TEXT), ..Default::default() }
 }
 
 pub fn composer(_: &Theme) -> container::Style {
-    container::Style {
-        background: Some(Background::Color(c::SURFACE)),
-        border: Border { color: c::BORDER_STRONG, width: 1.0, radius: 14.0.into() },
-        text_color: Some(c::TEXT),
-        ..Default::default()
-    }
+    container::Style { background: Some(Background::Color(c::SURFACE)), border: Border { color: c::BORDER_STRONG, width: 1.0, radius: 14.0.into() }, text_color: Some(c::TEXT), ..Default::default() }
 }
 
 pub fn banner(col: Color) -> impl Fn(&Theme) -> container::Style {
@@ -182,11 +155,7 @@ pub fn banner(col: Color) -> impl Fn(&Theme) -> container::Style {
 }
 
 pub fn solid(col: Color, radius: f32) -> impl Fn(&Theme) -> container::Style {
-    move |_| container::Style {
-        background: Some(Background::Color(col)),
-        border: Border { radius: radius.into(), ..Default::default() },
-        ..Default::default()
-    }
+    move |_| container::Style { background: Some(Background::Color(col)), border: Border { radius: radius.into(), ..Default::default() }, ..Default::default() }
 }
 
 pub fn pill(col: Color) -> impl Fn(&Theme) -> container::Style {
@@ -210,11 +179,7 @@ pub fn floating_pill(_: &Theme) -> container::Style {
 pub fn screen_frame(control: bool) -> impl Fn(&Theme) -> container::Style {
     move |_| container::Style {
         background: Some(Background::Color(Color::BLACK)),
-        border: Border {
-            color: if control { c::ACCENT } else { c::BORDER },
-            width: if control { 2.0 } else { 1.0 },
-            radius: 10.0.into(),
-        },
+        border: Border { color: if control { c::ACCENT } else { c::BORDER }, width: if control { 2.0 } else { 1.0 }, radius: 10.0.into() },
         ..Default::default()
     }
 }
@@ -228,12 +193,7 @@ pub fn btn_primary(_: &Theme, s: button::Status) -> button::Style {
         button::Status::Disabled => alpha(c::ACCENT, 0.35),
         button::Status::Active => c::ACCENT,
     };
-    button::Style {
-        background: Some(Background::Color(bg)),
-        text_color: c::ON_ACCENT,
-        border: Border { radius: 10.0.into(), ..Default::default() },
-        ..Default::default()
-    }
+    button::Style { background: Some(Background::Color(bg)), text_color: c::ON_ACCENT, border: Border { radius: 10.0.into(), ..Default::default() }, ..Default::default() }
 }
 
 pub fn btn_secondary(_: &Theme, s: button::Status) -> button::Style {
@@ -255,12 +215,7 @@ pub fn btn_danger(_: &Theme, s: button::Status) -> button::Style {
         button::Status::Hovered => alpha(c::RED, 0.28),
         _ => alpha(c::RED, 0.16),
     };
-    button::Style {
-        background: Some(Background::Color(bg)),
-        text_color: c::RED,
-        border: Border { color: alpha(c::RED, 0.5), width: 1.0, radius: 10.0.into() },
-        ..Default::default()
-    }
+    button::Style { background: Some(Background::Color(bg)), text_color: c::RED, border: Border { color: alpha(c::RED, 0.5), width: 1.0, radius: 10.0.into() }, ..Default::default() }
 }
 
 pub fn btn_ghost(_: &Theme, s: button::Status) -> button::Style {
@@ -269,12 +224,7 @@ pub fn btn_ghost(_: &Theme, s: button::Status) -> button::Style {
         button::Status::Pressed => Some(Background::Color(c::SELECTED)),
         _ => None,
     };
-    button::Style {
-        background: bg,
-        text_color: if s == button::Status::Disabled { c::TEXT_3 } else { c::TEXT_2 },
-        border: Border { radius: 8.0.into(), ..Default::default() },
-        ..Default::default()
-    }
+    button::Style { background: bg, text_color: if s == button::Status::Disabled { c::TEXT_3 } else { c::TEXT_2 }, border: Border { radius: 8.0.into(), ..Default::default() }, ..Default::default() }
 }
 
 pub fn btn_row(selected: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
@@ -288,12 +238,7 @@ pub fn btn_row(selected: bool) -> impl Fn(&Theme, button::Status) -> button::Sty
                 _ => None,
             }
         };
-        button::Style {
-            background: bg,
-            text_color: c::TEXT,
-            border: Border { radius: 10.0.into(), ..Default::default() },
-            ..Default::default()
-        }
+        button::Style { background: bg, text_color: c::TEXT, border: Border { radius: 10.0.into(), ..Default::default() }, ..Default::default() }
     }
 }
 
@@ -327,13 +272,7 @@ pub fn input(_: &Theme, s: text_input::Status) -> text_input::Style {
 }
 
 pub fn editor(_: &Theme, _s: text_editor::Status) -> text_editor::Style {
-    text_editor::Style {
-        background: Background::Color(c::SURFACE),
-        border: Border { width: 0.0, ..Default::default() },
-        placeholder: c::TEXT_3,
-        value: c::TEXT,
-        selection: alpha(c::ACCENT, 0.35),
-    }
+    text_editor::Style { background: Background::Color(c::SURFACE), border: Border { width: 0.0, ..Default::default() }, placeholder: c::TEXT_3, value: c::TEXT, selection: alpha(c::ACCENT, 0.35) }
 }
 
 pub fn scroll(_: &Theme, s: scrollable::Status) -> scrollable::Style {
@@ -341,11 +280,7 @@ pub fn scroll(_: &Theme, s: scrollable::Status) -> scrollable::Style {
     let rail = |_r: scrollable::Rail| scrollable::Rail {
         background: None,
         border: Border::default(),
-        scroller: scrollable::Scroller {
-            background: Background::Color(alpha(c::TEXT, 0.14)),
-            border: Border { radius: 4.0.into(), ..Default::default() },
-        },
-
+        scroller: scrollable::Scroller { background: Background::Color(alpha(c::TEXT, 0.14)), border: Border { radius: 4.0.into(), ..Default::default() } },
     };
     st.vertical_rail = rail(st.vertical_rail);
     st.horizontal_rail = rail(st.horizontal_rail);

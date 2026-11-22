@@ -62,10 +62,7 @@ fn classify_reqwest(e: &reqwest::Error) -> ApiError {
 }
 
 fn detail_of(body: &str) -> String {
-    serde_json::from_str::<Value>(body)
-        .ok()
-        .and_then(|v| v.get("detail").and_then(Value::as_str).map(str::to_string))
-        .unwrap_or_else(|| body.chars().take(160).collect())
+    serde_json::from_str::<Value>(body).ok().and_then(|v| v.get("detail").and_then(Value::as_str).map(str::to_string)).unwrap_or_else(|| body.chars().take(160).collect())
 }
 
 async fn map_response<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T, ApiError> {
@@ -79,10 +76,7 @@ async fn map_response<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T,
     match status {
         200..=299 => serde_json::from_slice(&bytes).map_err(|_| ApiError::BadReply),
         401 => {
-            let expired = serde_json::from_str::<Value>(&body)
-                .ok()
-                .and_then(|v| v.get("error").and_then(Value::as_str).map(|s| s == "session_expired"))
-                .unwrap_or(false);
+            let expired = serde_json::from_str::<Value>(&body).ok().and_then(|v| v.get("error").and_then(Value::as_str).map(|s| s == "session_expired")).unwrap_or(false);
             Err(ApiError::Unauthorized { session_expired: expired })
         }
         403 => Err(ApiError::Forbidden),
