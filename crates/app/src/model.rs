@@ -117,7 +117,15 @@ pub enum Item {
     Activity { tools: Vec<ToolCall>, expanded: bool },
     /// The Bot asks the user to take over its screen (for example to sign in).
     ComputerCard { text: String, resolved: bool },
-    Approval { request_id: String, rpc_id: serde_json::Value, command: String, description: String, answer: Option<String> },
+    Approval {
+        request_id: String,
+        rpc_id: Option<serde_json::Value>,
+        generation: Option<i64>,
+        command: String,
+        description: String,
+        choices: Vec<String>,
+        answer: Option<String>,
+    },
     Notice { text: String, error: bool },
 }
 
@@ -130,12 +138,14 @@ pub struct Chat {
     pub busy: bool,
     pub status_text: String,
     pub thinking: String,
+    /// Canonical gateways: the latest execution generation seen for this session.
+    pub generation: Option<i64>,
 }
 
 impl Chat {
     pub fn from_open(open: &SessionOpen) -> Self {
-        let mut chat = Chat { session_id: Some(open.session_id.clone()), ..Default::default() };
-        for m in &open.messages {
+        let mut chat = Chat { session_id: Some(open.session_id.clone()), generation: open.execution_generation, ..Default::default() };
+        for m in open.render_rows() {
             let text = m.display_text();
             match m.role.as_str() {
                 "user" if !text.is_empty() => chat.push(Item::User { text }),
@@ -155,6 +165,21 @@ impl Chat {
             }
         }
         chat.busy = open.running.unwrap_or(false);
+        // Approval prompts that already wait (canonical snapshot).
+        for p in &open.prompts {
+            if p.get("kind").and_then(|k| k.as_str()) == Some("approval") {
+                let s = |k: &str| p.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+                chat.push(Item::Approval {
+                    request_id: s("prompt_id"),
+                    rpc_id: None,
+                    generation: p.get("execution_generation").and_then(|v| v.as_i64()).or(open.execution_generation),
+                    command: s("command"),
+                    description: s("description"),
+                    choices: p.get("choices").and_then(|c| c.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default(),
+                    answer: None,
+                });
+            }
+        }
         chat
     }
 
@@ -290,6 +315,35 @@ impl Chat {
                 let waiting = self.items.iter().rev().take(4).any(|i| matches!(i, Item::ComputerCard { resolved: false, .. }));
                 if waiting { None } else { Some(BotStatus::Idle) }
             }
+            Event::ApprovalRequest { prompt_id, command, description, choices, generation } => {
+                if generation.is_some() {
+                    self.generation = *generation;
+                }
+                let known = self.items.iter().any(|i| matches!(i, Item::Approval { request_id, .. } if request_id == prompt_id));
+                if !known {
+                    self.push(Item::Approval {
+                        request_id: prompt_id.clone(),
+                        rpc_id: None,
+                        generation: *generation,
+                        command: command.clone(),
+                        description: description.clone(),
+                        choices: choices.clone(),
+                        answer: None,
+                    });
+                }
+                Some(BotStatus::NeedsYou("Needs your approval".into()))
+            }
+            Event::ApprovalSettled { prompt_id } => {
+                for i in self.items.iter_mut() {
+                    if let Item::Approval { request_id, answer, .. } = i
+                        && request_id == prompt_id
+                        && answer.is_none()
+                    {
+                        *answer = Some("settled".into());
+                    }
+                }
+                Some(BotStatus::Working("Continuing".into()))
+            }
             Event::Error { message } => {
                 self.push(Item::Notice { text: message.clone(), error: true });
                 self.busy = false;
@@ -391,7 +445,7 @@ mod tests {
     use super::*;
 
     fn ev(kind: &str, payload: serde_json::Value) -> Event {
-        GatewayEvent { kind: kind.into(), session_id: Some("s".into()), payload }.typed()
+        GatewayEvent { kind: kind.into(), session_id: Some("s".into()), payload, execution_generation: None }.typed()
     }
 
     #[test]

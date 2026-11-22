@@ -79,6 +79,24 @@ fn validate(schema: &Value, v: &Value, defs: &Value, path: &str, errs: &mut Vec<
     }
 }
 
+/// The `approval.request` payload must also be a valid `CanonicalPendingPrompt` (snapshot `prompts` rows).
+fn canonical_pending_prompt(v: &Value) {
+    let c = contract();
+    let mut errs = vec![];
+    validate(&c["schemas"]["CanonicalPendingPrompt"], v, &c["schemas"], "approval.request", &mut errs);
+    assert!(errs.is_empty(), "{}", errs.join("\n"));
+}
+
+/// Check against the canonical (`hermes-gateway-v1`) contract that the real gateway enforces.
+fn canonical(name: &str, kind: &str, v: &Value) {
+    let c = contract();
+    let schema = &c["canonical"][name][kind];
+    assert!(!schema.is_null(), "no canonical contract for {name} {kind}");
+    let mut errs = vec![];
+    validate(schema, v, &c["schemas"], name, &mut errs);
+    assert!(errs.is_empty(), "canonical {kind} {name} breaks the upstream contract:\n{}", errs.join("\n"));
+}
+
 fn check(kind: &str, name: &str, v: &Value) {
     let c = contract();
     let schema = match kind {
@@ -125,7 +143,13 @@ async fn mock_matches_upstream_contract() {
     let mut events: Vec<Value> = vec![];
     let mut call = async |ws: &mut tokio_tungstenite::WebSocketStream<_>, method: &str, params: Value, events: &mut Vec<Value>| -> Value {
         id += 1;
-        check("params", method, &params);
+        if method == "session.resume" {
+            canonical(method, "params", &params);
+        } else if !["prompt.submit", "session.interrupt", "approval.respond"].contains(&method) {
+            check("params", method, &params);
+        } else {
+            canonical(method, "params", &params);
+        }
         ws.send(Message::Text(json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}).to_string().into())).await.unwrap();
         loop {
             let m = tokio::time::timeout(Duration::from_secs(5), ws.next()).await.unwrap().unwrap().unwrap();
@@ -146,13 +170,15 @@ async fn mock_matches_upstream_contract() {
     let r = call(&mut ws, "session.list", json!({"profile": "scout", "title": "Bot Chat", "limit": 50, "include_hidden": true}), &mut events).await;
     check("result", "session.list", &r);
     let sid_row = r["sessions"][0]["id"].as_str().unwrap().to_string();
-    let r = call(&mut ws, "session.resume", json!({"session_id": sid_row, "profile": "scout"}), &mut events).await;
-    check("result", "session.resume", &r);
+    let r = call(&mut ws, "session.resume", json!({"session_id": sid_row, "profile": "scout", "display_projection": true}), &mut events).await;
+    canonical("session.resume", "result", &r);
     let r2 = call(&mut ws, "session.create", json!({"profile": "inbox", "title": "Bot Chat", "hidden": true, "follow_profile_config": true}), &mut events).await;
-    check("result", "session.create", &r2);
+    canonical("session.resume", "result", &r2);
     let sid = r["session_id"].as_str().unwrap().to_string();
-    let r = call(&mut ws, "prompt.submit", json!({"session_id": sid, "profile": "scout", "text": "please log in"}), &mut events).await;
-    check("result", "prompt.submit", &r);
+    let r = call(&mut ws, "prompt.submit", json!({"session_id": sid, "text": "please clean up the build", "submission_id": "sub-0"}), &mut events).await;
+    canonical("prompt.submit", "result", &r);
+    let r = call(&mut ws, "prompt.submit", json!({"session_id": sid, "text": "please log in", "submission_id": "sub-1"}), &mut events).await;
+    canonical("prompt.submit", "result", &r);
     for (m, p) in [
         ("display.status", json!({"profile": "scout"})),
         ("display.start", json!({"profile": "scout"})),
@@ -166,10 +192,10 @@ async fn mock_matches_upstream_contract() {
     check("result", "display.lease.acquire", &r);
     let r = call(&mut ws, "display.lease.release", json!({"profile": "scout", "viewer_id": "v1"}), &mut events).await;
     check("result", "display.lease.release", &r);
-    let r = call(&mut ws, "session.interrupt", json!({"session_id": sid, "profile": "scout"}), &mut events).await;
-    check("result", "session.interrupt", &r);
-    let r = call(&mut ws, "approval.respond", json!({"session_id": sid, "profile": "scout", "request_id": "r1", "choice": "once"}), &mut events).await;
-    check("result", "approval.respond", &r);
+    let r = call(&mut ws, "session.interrupt", json!({"session_id": sid, "execution_generation": 1}), &mut events).await;
+    assert!(r.is_object());
+    let r = call(&mut ws, "approval.respond", json!({"session_id": sid, "execution_generation": 1, "prompt_id": "p1", "choice": "once"}), &mut events).await;
+    canonical("approval.respond", "result", &r);
     let r = call(&mut ws, "profiles.create", json!({"name": "helper", "description": "Helps"}), &mut events).await;
     check("result", "profiles.create", &r);
     let r = call(&mut ws, "profiles.configure", json!({"profile": "helper", "ui_meta": {"hermes-bots": {"title": "Helper"}}}), &mut events).await;
@@ -189,10 +215,25 @@ async fn mock_matches_upstream_contract() {
         if kind == "gateway.ready" {
             continue;
         }
-        check("event", kind, e["params"].get("payload").unwrap_or(&json!({})));
+        let empty = json!({});
+        let payload = e["params"].get("payload").unwrap_or(&empty);
+        if kind == "approval.request" || kind == "approval.settled" {
+            // Canonical-only events (gateway/session_pending_controls.py; typed by hand in
+            // apps/shared/src/gateway-events.ts, not in the generated contract).
+            assert!(payload["prompt_id"].is_string(), "{kind} needs prompt_id");
+            if kind == "approval.request" {
+                let allowed = ["kind", "prompt_id", "execution_generation", "command", "description", "choices", "edit", "timeout_s"];
+                for k in payload.as_object().unwrap().keys() {
+                    assert!(allowed.contains(&k.as_str()), "approval.request has unknown key {k}");
+                }
+                canonical_pending_prompt(payload);
+            }
+        } else {
+            check("event", kind, payload);
+        }
         seen.insert(kind.to_string());
     }
-    for k in ["message.start", "message.delta", "message.complete", "tool.start", "tool.progress", "tool.complete", "status.update", "display.lease"] {
+    for k in ["message.start", "message.delta", "message.complete", "tool.start", "tool.progress", "tool.complete", "status.update", "display.lease", "approval.request", "approval.settled"] {
         assert!(seen.contains(k), "mock never sent {k}; saw {seen:?}");
     }
     drop(mock);
@@ -230,6 +271,16 @@ async fn sign_in(http: &reqwest::Client, base: &str) -> Value {
         .json()
         .await
         .unwrap()
+}
+
+#[test]
+fn canonical_submit_needs_submission_id() {
+    let c = contract();
+    let mut e = vec![];
+    // The shape our client sent first (with `profile`, without `submission_id`) is valid JSON
+    // Schema, so the gateway's own closed-key rule is tested against the mock in the client tests.
+    validate(&c["canonical"]["prompt.submit"]["params"], &json!({"session_id": "s", "text": "t", "submission_id": "x"}), &c["schemas"], "t", &mut e);
+    assert!(e.is_empty(), "{e:?}");
 }
 
 #[test]

@@ -495,7 +495,8 @@ fn item_view<'a>(app: &'a App, bot: &'a Bot, i: usize, item: &'a Item) -> El<'a>
             }
             container(col).padding(14).width(Fill).style(if *resolved { theme::card } else { theme::card_accent }).into()
         }
-        Item::Approval { command, description, answer, .. } => {
+        Item::Approval { command, description, answer, choices, .. } => {
+            let offers = |c: &str| choices.is_empty() || choices.iter().any(|x| x == c);
             let mut col = column![
                 row![icon(icons::KEY).color(c::AMBER), text("Approval needed").size(14).font(theme::SEMIBOLD).color(c::TEXT)].spacing(8).align_y(Alignment::Center),
                 muted(description.as_str()),
@@ -504,16 +505,21 @@ fn item_view<'a>(app: &'a App, bot: &'a Bot, i: usize, item: &'a Item) -> El<'a>
             .spacing(8);
             match answer {
                 None => {
-                    col = col.push(
-                        row![
-                            primary("Allow once", Some(Msg::Approve(i, "once".into()))),
-                            secondary("Always allow", Some(Msg::Approve(i, "always".into()))),
-                            button(text("Deny").size(14)).padding([9, 16]).style(theme::btn_danger).on_press(Msg::Approve(i, "deny".into()))
-                        ]
-                        .spacing(8),
-                    )
+                    let mut r = row![primary("Allow once", Some(Msg::Approve(i, "once".into())))].spacing(8);
+                    if offers("session") && !choices.is_empty() {
+                        r = r.push(secondary("Allow for this chat", Some(Msg::Approve(i, "session".into()))));
+                    }
+                    if offers("always") {
+                        r = r.push(secondary("Always allow", Some(Msg::Approve(i, "always".into()))));
+                    }
+                    r = r.push(button(text("Deny").size(14)).padding([9, 16]).style(theme::btn_danger).on_press(Msg::Approve(i, "deny".into())));
+                    col = col.push(r)
                 }
-                Some(a) => col = col.push(faint(if a == "deny" { "Denied" } else { "Allowed" })),
+                Some(a) => col = col.push(faint(match a.as_str() {
+                    "deny" => "Denied",
+                    "settled" => "Answered",
+                    _ => "Allowed",
+                })),
             }
             container(col).padding(14).width(Fill).style(theme::card_accent).into()
         }

@@ -75,7 +75,8 @@ pub fn parse_frame(text: &str) -> Option<ParsedFrame> {
             let kind = params.get("type")?.as_str()?.to_string();
             let session_id = params.get("session_id").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_string);
             let payload = params.get("payload").cloned().unwrap_or(Value::Null);
-            Some(ParsedFrame::Event(GatewayEvent { kind, session_id, payload }))
+            let execution_generation = params.get("execution_generation").and_then(Value::as_i64);
+            Some(ParsedFrame::Event(GatewayEvent { kind, session_id, payload, execution_generation }))
         }
         Some(m) => {
             let id = obj.get("id")?.clone();
@@ -271,8 +272,10 @@ impl Gateway {
     /// Open (resume or create) the Bot Chat of a profile. Returns the live session.
     pub async fn open_bot_chat(&self, profile: &str) -> Result<SessionOpen, GatewayError> {
         if let Some(row) = self.find_bot_chat(profile).await? {
-            let sid = row.resolved_id.clone().unwrap_or(row.id.clone());
-            return self.call_as("session.resume", json!({"session_id": sid, "profile": profile})).await;
+            let sid = row.resolved_id.clone().filter(|s| !s.is_empty()).unwrap_or(row.id.clone());
+            return self
+                .call_as("session.resume", json!({"session_id": sid, "profile": profile, "display_projection": true}))
+                .await;
         }
         self.call_as(
             "session.create",
@@ -281,20 +284,30 @@ impl Gateway {
         .await
     }
 
-    pub async fn prompt_submit(&self, session_id: &str, profile: &str, text: &str) -> Result<PromptSubmit, GatewayError> {
-        self.call_as("prompt.submit", json!({"session_id": session_id, "profile": profile, "text": text})).await
+    /// Send a message. Canonical gateways need a client `submission_id` (idempotency key) and
+    /// refuse unknown keys, so this sends exactly `session_id`, `text` and `submission_id`. The
+    /// session id already names the profile (the socket opened it).
+    pub async fn prompt_submit(&self, session_id: &str, _profile: &str, text: &str) -> Result<PromptSubmit, GatewayError> {
+        let submission_id = new_submission_id();
+        self.call_as("prompt.submit", json!({"session_id": session_id, "text": text, "submission_id": submission_id})).await
     }
 
-    pub async fn interrupt(&self, session_id: &str, profile: &str) -> Result<Value, GatewayError> {
-        self.call("session.interrupt", json!({"session_id": session_id, "profile": profile})).await
+    /// Stop the running turn. Canonical gateways need the execution generation.
+    pub async fn interrupt(&self, session_id: &str, _profile: &str, generation: Option<i64>) -> Result<Value, GatewayError> {
+        let mut p = json!({"session_id": session_id});
+        if let Some(g) = generation {
+            p["execution_generation"] = json!(g);
+        }
+        self.call("session.interrupt", p).await
     }
 
-    pub async fn approval_respond(&self, session_id: &str, profile: &str, request_id: &str, choice: &str) -> Result<Value, GatewayError> {
-        self.call(
-            "approval.respond",
-            json!({"session_id": session_id, "profile": profile, "request_id": request_id, "choice": choice}),
-        )
-        .await
+    /// Answer an approval prompt (`CanonicalApprovalParams`).
+    pub async fn approval_respond(&self, session_id: &str, prompt_id: &str, choice: &str, generation: Option<i64>) -> Result<Value, GatewayError> {
+        let mut p = json!({"session_id": session_id, "prompt_id": prompt_id, "choice": choice});
+        if let Some(g) = generation {
+            p["execution_generation"] = json!(g);
+        }
+        self.call("approval.respond", p).await
     }
 
     pub async fn display_status(&self, profile: &str) -> Result<DisplayStatus, GatewayError> {
@@ -336,6 +349,13 @@ impl Gateway {
     pub async fn profiles_configure_meta(&self, profile: &str, meta: Value) -> Result<Value, GatewayError> {
         self.call("profiles.configure", json!({"profile": profile, "ui_meta": {"hermes-bots": meta}})).await
     }
+}
+
+/// A random client submission id (prompt.submit idempotency key).
+pub fn new_submission_id() -> String {
+    let mut b = [0u8; 16];
+    rand::RngCore::fill_bytes(&mut rand::rng(), &mut b);
+    format!("hbd-{}", b.iter().map(|x| format!("{x:02x}")).collect::<String>())
 }
 
 /// The canonical Bot Chat title (`apps/desktop/src/plugins/hermes-bots/canonical-chat.ts`).

@@ -75,7 +75,12 @@ async fn chat_streams_reply_and_tools() {
     let chat = gw.open_bot_chat("scout").await.unwrap();
     assert!(!chat.messages.is_empty());
     let sub = gw.prompt_submit(&chat.session_id, "scout", "Give me an update").await.unwrap();
-    assert_eq!(sub.status.as_deref(), Some("streaming"));
+    assert_eq!(sub.status.as_deref(), Some("queued"));
+    assert!(sub.admission_id.is_some());
+    // Regression (found in the live test): the canonical gateway refuses a submit without a
+    // client submission id.
+    let bad = gw.call("prompt.submit", serde_json::json!({"session_id": chat.session_id, "text": "x"})).await;
+    assert!(matches!(bad, Err(hermes_api::gateway::GatewayError::Rpc { code: 4001, .. })));
     let mut text = String::new();
     let mut tools = 0;
     let mut done = false;
@@ -189,6 +194,29 @@ async fn bad_ticket_is_refused() {
         Incoming::Closed { code, .. } => assert_eq!(code, Some(4401)),
         other => panic!("expected close, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn approval_round_trip() {
+    let (rest, base, _) = start().await;
+    sign_in(&rest, &base).await;
+    let (gw, mut rx) = Gateway::connect(&rest).await.unwrap();
+    let chat = gw.open_bot_chat("sentinel").await.unwrap();
+    assert_eq!(chat.execution_generation, Some(1));
+    gw.prompt_submit(&chat.session_id, "sentinel", "Please clean up the build").await.unwrap();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let (prompt_id, generation) = loop {
+        if let Incoming::Event(e) = tokio::time::timeout_at(deadline, rx.recv()).await.unwrap().unwrap()
+            && let Event::ApprovalRequest { prompt_id, generation, .. } = e.typed()
+        {
+            break (prompt_id, generation);
+        }
+    };
+    assert!(gw.approval_respond(&chat.session_id, &prompt_id, "once", None).await.is_err(), "generation is required");
+    let r = gw.approval_respond(&chat.session_id, &prompt_id, "once", generation).await.unwrap();
+    assert_eq!(r["status"], "resolved");
+    assert!(gw.interrupt(&chat.session_id, "sentinel", None).await.is_err());
+    gw.interrupt(&chat.session_id, "sentinel", Some(1)).await.unwrap();
 }
 
 #[tokio::test]

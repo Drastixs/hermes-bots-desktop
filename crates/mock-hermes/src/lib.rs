@@ -97,7 +97,8 @@ impl Mock {
     }
 
     fn emit(&self, kind: &str, sid: &str, payload: Value) {
-        let _ = self.events.send(json!({"jsonrpc": "2.0", "method": "event", "params": {"type": kind, "session_id": sid, "payload": payload}}));
+        // Canonical gateways stamp the owner's execution generation beside `type`.
+        let _ = self.events.send(json!({"jsonrpc": "2.0", "method": "event", "params": {"type": kind, "session_id": sid, "payload": payload, "execution_generation": 1}}));
     }
 
     async fn sleep(&self, ms: u64) {
@@ -432,13 +433,29 @@ async fn handle_rpc(m: &Shared, method: &str, p: &Value) -> Result<Value, (i64, 
             g.sessions.insert(sid.clone(), profile.clone());
             let mut msgs = if method == "session.resume" { fixtures::history(&profile) } else { vec![] };
             msgs.extend(g.stored.get(&profile).cloned().unwrap_or_default());
-            let mut r = json!({"session_id": sid, "stored_session_id": format!("chat-{profile}"), "message_count": msgs.len(), "messages": msgs, "info": {"model": "mock-model-1", "provider": "mock"}});
-            if method == "session.resume" {
-                r["running"] = json!(false);
-            }
-            Ok(r)
+            // The canonical snapshot (`CanonicalSnapshot`), as the real v0.23.3 gateway sends it.
+            Ok(json!({
+                "session_id": sid, "stored_session_id": format!("chat-{profile}"),
+                "messages": msgs, "display_messages": msgs, "message_count": msgs.len(), "running": false,
+                "authority_epoch": 1, "replay_epoch": "mock", "last_sequence": 0, "subscription_id": format!("sub-{}", m.next()),
+                "revision": 1, "execution_generation": 1, "pending": [], "prompts": [],
+                "info": {"model": "mock-model-1", "provider": "mock", "profile_name": profile, "desktop_protocol": "hermes-gateway-v1"}
+            }))
         }
         "prompt.submit" => {
+            // Canonical gateway rules (gateway/session_controls.py `submission`): a closed key set
+            // (an own-home `profile` is dropped first) and a required client submission id.
+            const ALLOWED: [&str; 18] = ["session_id", "text", "submission_id", "input_id", "queued", "attachments", "finite",
+                "unattended", "surface", "voice_context", "interrupted", "voice_turn", "display_kind", "title_preview",
+                "turn_author", "api_text", "model_override", "clarify_batch"];
+            let keys: Vec<&String> = p.as_object().map(|o| o.keys().filter(|k| k.as_str() != "profile").collect()).unwrap_or_default();
+            if keys.iter().any(|k| !ALLOWED.contains(&k.as_str())) {
+                return Err((4001, "invalid_params".into()));
+            }
+            let sub = p.get("submission_id").or_else(|| p.get("input_id")).and_then(Value::as_str).unwrap_or("");
+            if sub.is_empty() || !p.get("text").is_some_and(Value::is_string) {
+                return Err((4001, "invalid_params".into()));
+            }
             let sid = p.get("session_id").and_then(Value::as_str).unwrap_or("").to_string();
             let text = p.get("text").and_then(Value::as_str).unwrap_or("").to_string();
             let prof = {
@@ -452,11 +469,30 @@ async fn handle_rpc(m: &Shared, method: &str, p: &Value) -> Result<Value, (i64, 
             };
             let Some(prof) = prof else { return Err((4004, "unknown session".into())) };
             let m2 = m.clone();
-            tokio::spawn(async move { stream_reply(m2, sid, prof, text).await });
-            Ok(json!({"status": "streaming"}))
+            let sid2 = sid.clone();
+            tokio::spawn(async move { stream_reply(m2, sid2, prof.clone(), text).await });
+            Ok(json!({"status": "queued", "admission_id": format!("adm-{}", m.next()), "execution_generation": 1,
+                      "authority_epoch": 1, "sequence": m.next(), "outcome": null,
+                      "ref": {"profile_id": "/home/mock/.hermes", "session_id": sid}}))
         }
-        "session.interrupt" => Ok(json!({"status": "interrupted", "interrupted": true})),
-        "approval.respond" => Ok(json!({"resolved": 1})),
+        "session.interrupt" => {
+            if p.get("execution_generation").and_then(Value::as_i64).is_none() {
+                return Err((4001, "invalid_params".into()));
+            }
+            Ok(json!({"status": "interrupted", "interrupted": true}))
+        }
+        "approval.respond" => {
+            let ok = p.get("prompt_id").and_then(Value::as_str).is_some_and(|x| !x.is_empty())
+                && p.get("choice").and_then(Value::as_str).is_some()
+                && p.get("execution_generation").and_then(Value::as_i64).is_some();
+            if !ok {
+                return Err((4001, "invalid_params".into()));
+            }
+            let pid = p["prompt_id"].as_str().unwrap_or("").to_string();
+            let sid = p.get("session_id").and_then(Value::as_str).unwrap_or("").to_string();
+            m.emit("approval.settled", &sid, json!({"prompt_id": pid}));
+            Ok(json!({"status": "resolved", "prompt_id": pid}))
+        }
         "display.status" => Ok(display_status(&*m.inner.lock().await, &profile)),
         "display.start" => {
             let mut g = m.inner.lock().await;
@@ -542,6 +578,12 @@ async fn stream_reply(m: Shared, sid: String, profile: String, text: String) {
     m.sleep(500).await;
     m.emit("thinking.delta", &sid, json!({"text": "Planning the steps."}));
     let login = tools.iter().any(|t| t.0 == "computer_use");
+    if text.to_lowercase().contains("clean up") {
+        m.emit("approval.request", &sid, json!({"kind": "approval", "prompt_id": format!("ap-{}", m.next()), "execution_generation": 1,
+            "command": "rm -rf ./build/cache", "description": "Delete the build cache folder", "choices": ["once", "deny", "session", "always"]}));
+        m.emit("status.update", &sid, json!({"kind": "idle", "text": "Needs your approval"}));
+        return;
+    }
     for (i, (name, ctx)) in tools.iter().enumerate() {
         let tid = format!("t{}-{}", m.next(), i);
         m.emit("tool.start", &sid, json!({"tool_id": tid, "name": name, "context": ctx}));

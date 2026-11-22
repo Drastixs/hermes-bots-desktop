@@ -23,8 +23,9 @@ pub enum Command {
     RefreshBots,
     OpenChat { profile: String },
     Send { profile: String, session_id: String, text: String },
-    Stop { profile: String, session_id: String },
-    Approve { profile: String, session_id: String, request_id: String, choice: String, rpc_id: Value },
+    Stop { profile: String, session_id: String, generation: Option<i64> },
+    /// `rpc_id`: set for a legacy server request (answered in place); None for a canonical `approval.request` event.
+    Approve { session_id: String, request_id: String, choice: String, rpc_id: Option<Value>, generation: Option<i64> },
     ScreenStatus { profile: String },
     ScreenStart { profile: String },
     ScreenWatch { profile: String, viewer_id: Option<String> },
@@ -171,14 +172,19 @@ impl Worker {
                     self.emit(NetEvent::SendFailed { profile, message: e.to_string() }).await;
                 }
             }
-            Command::Stop { profile, session_id } => {
-                let _ = gw.interrupt(&session_id, &profile).await;
+            Command::Stop { profile, session_id, generation } => {
+                let _ = gw.interrupt(&session_id, &profile, generation).await;
             }
-            Command::Approve { profile, session_id, request_id, choice, rpc_id } => {
-                // Answer the server request; also call approval.respond for gateways that use it.
-                let _ = gw.respond(rpc_id, json!({"choice": choice})).await;
-                let _ = gw.approval_respond(&session_id, &profile, &request_id, &choice).await;
-            }
+            Command::Approve { session_id, request_id, choice, rpc_id, generation } => match rpc_id {
+                // Legacy gateway: answer its server request in place.
+                Some(id) => {
+                    let _ = gw.respond(id, json!({"choice": choice})).await;
+                }
+                // Canonical gateway: approval.respond with the prompt id and generation.
+                None => {
+                    let _ = gw.approval_respond(&session_id, &request_id, &choice, generation).await;
+                }
+            },
             Command::ScreenStatus { profile } => match gw.display_status(&profile).await {
                 Ok(status) => self.emit(NetEvent::Screen { profile, status }).await,
                 Err(e) => self.emit(NetEvent::ScreenError { profile, message: e.to_string() }).await,

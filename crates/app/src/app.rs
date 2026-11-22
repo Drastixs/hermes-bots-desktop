@@ -394,9 +394,11 @@ impl App {
             }
             Msg::Stop => {
                 if let Some(name) = self.selected.clone()
-                    && let Some(sid) = self.chats.get(&name).and_then(|c| c.session_id.clone())
+                    && let Some(chat) = self.chats.get(&name)
+                    && let Some(sid) = chat.session_id.clone()
                 {
-                    self.send(Command::Stop { profile: name, session_id: sid });
+                    let generation = chat.generation;
+                    self.send(Command::Stop { profile: name, session_id: sid, generation });
                 }
             }
             Msg::ToggleActivity(i) => {
@@ -411,11 +413,18 @@ impl App {
                 let Some(name) = self.selected.clone() else { return Task::none() };
                 if let Some(chat) = self.chats.get_mut(&name) {
                     let sid = chat.session_id.clone().unwrap_or_default();
-                    if let Some(Item::Approval { request_id, rpc_id, answer, .. }) = chat.items.get_mut(i)
+                    let chat_gen = chat.generation;
+                    if let Some(Item::Approval { request_id, rpc_id, generation, answer, .. }) = chat.items.get_mut(i)
                         && answer.is_none()
                     {
                         *answer = Some(choice.clone());
-                        let cmd = Command::Approve { profile: name.clone(), session_id: sid, request_id: request_id.clone(), choice, rpc_id: rpc_id.clone() };
+                        let cmd = Command::Approve {
+                            session_id: sid,
+                            request_id: request_id.clone(),
+                            choice,
+                            rpc_id: rpc_id.clone(),
+                            generation: generation.or(chat_gen),
+                        };
                         self.statuses.insert(name, BotStatus::Working("Continuing".into()));
                         self.send(cmd);
                     }
@@ -686,6 +695,9 @@ impl App {
                 let Some(profile) = self.session_index.get(sid).cloned() else { return Task::none() };
                 let typed = ge.typed();
                 let chat = self.chats.entry(profile.clone()).or_default();
+                if let Some(g) = ge.execution_generation {
+                    chat.generation = Some(g);
+                }
                 let change = chat.apply(&typed);
                 if let Some(s) = change {
                     self.statuses.insert(profile.clone(), s);
@@ -714,9 +726,11 @@ impl App {
                     let chat = self.chats.entry(profile.clone()).or_default();
                     chat.push(Item::Approval {
                         request_id: s("request_id"),
-                        rpc_id: req.id.clone(),
+                        rpc_id: Some(req.id.clone()),
+                        generation: None,
                         command: s("command"),
                         description: s("description"),
+                        choices: vec![],
                         answer: None,
                     });
                     self.statuses.insert(profile, BotStatus::NeedsYou("Needs your approval".into()));

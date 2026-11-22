@@ -7,7 +7,30 @@
 //! Every type parses leniently: unknown keys are ignored and missing keys take a default,
 //! so new or partial server data never makes the client fail.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// Accept a number, a numeric string or null (null and junk become 0). Server rows vary here.
+fn lenient_f64<'de, D: Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    let v = Value::deserialize(d)?;
+    Ok(match v {
+        Value::Number(n) => n.as_f64().unwrap_or(0.0),
+        Value::String(s) => s.parse().unwrap_or(0.0),
+        _ => 0.0,
+    })
+}
+
+fn lenient_i64<'de, D: Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
+    Ok(lenient_f64(d)? as i64)
+}
+
+fn lenient_string<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    let v = Value::deserialize(d)?;
+    Ok(match v {
+        Value::String(s) => s,
+        Value::Null => String::new(),
+        other => other.to_string(),
+    })
+}
 use serde_json::Value;
 
 /// `GET /api/health`.
@@ -15,6 +38,7 @@ use serde_json::Value;
 #[serde(default)]
 pub struct Health {
     pub ok: bool,
+    #[serde(deserialize_with = "lenient_string")]
     pub version: String,
     pub auth_required: bool,
 }
@@ -23,6 +47,7 @@ pub struct Health {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct Status {
+    #[serde(deserialize_with = "lenient_string")]
     pub version: String,
     pub auth_required: bool,
     pub auth_providers: Vec<String>,
@@ -75,10 +100,15 @@ impl std::fmt::Debug for TokenSet {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct Me {
+    #[serde(deserialize_with = "lenient_string")]
     pub user_id: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub email: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub display_name: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub provider: String,
+    #[serde(deserialize_with = "lenient_i64")]
     pub expires_at: i64,
 }
 
@@ -115,12 +145,18 @@ pub struct BotMeta {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct SessionPreview {
+    #[serde(deserialize_with = "lenient_string")]
     pub id: String,
     pub resolved_id: Option<String>,
+    #[serde(deserialize_with = "lenient_string")]
     pub title: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub preview: String,
+    #[serde(deserialize_with = "lenient_f64")]
     pub started_at: f64,
+    #[serde(deserialize_with = "lenient_f64")]
     pub last_active: f64,
+    #[serde(deserialize_with = "lenient_i64")]
     pub message_count: i64,
 }
 
@@ -128,9 +164,13 @@ pub struct SessionPreview {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct WorkerSession {
+    #[serde(deserialize_with = "lenient_string")]
     pub id: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub source: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub title: String,
+    #[serde(deserialize_with = "lenient_f64")]
     pub last_active: f64,
 }
 
@@ -138,14 +178,20 @@ pub struct WorkerSession {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct Profile {
+    #[serde(deserialize_with = "lenient_string")]
     pub name: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub path: String,
     pub is_default: bool,
     pub model: Option<String>,
     pub provider: Option<String>,
+    #[serde(deserialize_with = "lenient_string")]
     pub description: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub display_name: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub bot_title: String,
+    #[serde(deserialize_with = "lenient_i64")]
     pub skill_count: i64,
     pub gateway_running: bool,
     pub last_session: Option<SessionPreview>,
@@ -197,12 +243,20 @@ pub struct ProfileList {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct SessionRow {
+    #[serde(deserialize_with = "lenient_string")]
     pub id: String,
+    /// Canonical gateways name the live id here.
+    pub session_id: Option<String>,
     pub resolved_id: Option<String>,
+    #[serde(deserialize_with = "lenient_string")]
     pub title: String,
+    #[serde(deserialize_with = "lenient_string")]
     pub preview: String,
+    #[serde(deserialize_with = "lenient_f64")]
     pub started_at: f64,
+    #[serde(deserialize_with = "lenient_i64")]
     pub message_count: i64,
+    #[serde(deserialize_with = "lenient_string")]
     pub source: String,
 }
 
@@ -233,6 +287,12 @@ impl TranscriptMessage {
         }
         match &self.content {
             Some(Value::String(s)) => s.clone(),
+            // OpenAI-style content parts: join the text parts.
+            Some(Value::Array(parts)) => parts
+                .iter()
+                .filter_map(|p| p.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n"),
             _ => String::new(),
         }
     }
@@ -242,11 +302,30 @@ impl TranscriptMessage {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct SessionOpen {
+    #[serde(deserialize_with = "lenient_string")]
     pub session_id: String,
     pub stored_session_id: Option<String>,
+    #[serde(deserialize_with = "lenient_i64")]
     pub message_count: i64,
+    /// Stored rows (canonical gateways send `content`; older ones send `text`).
     pub messages: Vec<TranscriptMessage>,
+    /// Canonical gateways: the display projection of the same rows (preferred when present).
+    pub display_messages: Option<Vec<TranscriptMessage>>,
     pub running: Option<bool>,
+    /// Canonical gateways: the current execution generation (needed by interrupt and approvals).
+    pub execution_generation: Option<i64>,
+    /// Canonical gateways: approval and clarify prompts that wait now.
+    pub prompts: Vec<serde_json::Value>,
+}
+
+impl SessionOpen {
+    /// The rows to render: the display projection when the gateway sent one.
+    pub fn render_rows(&self) -> &[TranscriptMessage] {
+        match &self.display_messages {
+            Some(d) if !d.is_empty() => d,
+            _ => &self.messages,
+        }
+    }
 }
 
 /// `DisplayLease`.
@@ -254,10 +333,14 @@ pub struct SessionOpen {
 #[serde(default)]
 pub struct DisplayLease {
     /// `agent` or `human`.
+    #[serde(deserialize_with = "lenient_string")]
     pub holder: String,
     pub viewer_hash: Option<String>,
+    #[serde(deserialize_with = "lenient_f64")]
     pub since: f64,
+    #[serde(deserialize_with = "lenient_i64")]
     pub epoch: i64,
+    #[serde(deserialize_with = "lenient_string")]
     pub reason: String,
 }
 
@@ -323,8 +406,11 @@ pub struct Thumbnail {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct PromptSubmit {
-    /// `streaming`, `queued`, `steered` or `redirected`.
+    /// Legacy: `streaming`, `queued`, `steered`, `redirected`.
+    /// Canonical (`AdmissionStatus`): `queued`, `started`, `unknown`, `terminal`.
     pub status: Option<String>,
+    pub admission_id: Option<String>,
+    pub execution_generation: Option<i64>,
 }
 
 /// `profiles.create` result.
@@ -344,6 +430,8 @@ pub struct GatewayEvent {
     pub kind: String,
     pub session_id: Option<String>,
     pub payload: Value,
+    /// Canonical gateways stamp the owner's execution generation beside `type`.
+    pub execution_generation: Option<i64>,
 }
 
 /// Typed view of the gateway events this client renders.
@@ -361,6 +449,9 @@ pub enum Event {
     DisplayStatus(DisplayStatus),
     DisplayLease { profile_key: String, lease: DisplayLease },
     SessionsChanged,
+    /// Canonical gateways: an approval prompt waits for the user.
+    ApprovalRequest { prompt_id: String, command: String, description: String, choices: Vec<String>, generation: Option<i64> },
+    ApprovalSettled { prompt_id: String },
     Notice { message: String },
     Error { message: String },
     Other,
@@ -428,6 +519,18 @@ impl GatewayEvent {
                 lease: p.get("lease").and_then(|l| serde_json::from_value(l.clone()).ok()).unwrap_or_default(),
             },
             "sessions.changed" => Event::SessionsChanged,
+            "approval.request" => Event::ApprovalRequest {
+                prompt_id: str_of(p, "prompt_id").unwrap_or_default(),
+                command: str_of(p, "command").unwrap_or_default(),
+                description: str_of(p, "description").unwrap_or_default(),
+                choices: p
+                    .get("choices")
+                    .and_then(Value::as_array)
+                    .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
+                    .unwrap_or_default(),
+                generation: p.get("execution_generation").and_then(Value::as_i64).or(self.execution_generation),
+            },
+            "approval.settled" => Event::ApprovalSettled { prompt_id: str_of(p, "prompt_id").unwrap_or_default() },
             "notice" => Event::Notice { message: str_of(p, "message").unwrap_or_default() },
             "error" => Event::Error { message: str_of(p, "message").unwrap_or_else(|| "Unknown error".into()) },
             _ => Event::Other,
@@ -463,6 +566,12 @@ mod tests {
     }
 
     #[test]
+    fn rows_tolerate_nulls() {
+        let r: SessionRow = serde_json::from_value(json!({"id": "a", "started_at": null, "message_count": "3", "source": null})).unwrap();
+        assert_eq!((r.started_at, r.message_count, r.source.as_str()), (0.0, 3, ""));
+    }
+
+    #[test]
     fn profile_tolerates_bad_meta() {
         let p: Profile = serde_json::from_value(json!({"name": "x", "ui_meta": {"hermes-bots": "oops"}})).unwrap();
         assert!(!p.is_bot());
@@ -474,18 +583,27 @@ mod tests {
 
     #[test]
     fn events_map() {
-        let ev = GatewayEvent { kind: "message.delta".into(), session_id: None, payload: json!({"text": "hi"}) };
+        let ev = GatewayEvent { kind: "message.delta".into(), session_id: None, payload: json!({"text": "hi"}), execution_generation: None };
         assert_eq!(ev.typed(), Event::MessageDelta { text: "hi".into() });
-        let ev = GatewayEvent { kind: "message.delta".into(), session_id: None, payload: json!({"text": null}) };
+        let ev = GatewayEvent { kind: "message.delta".into(), session_id: None, payload: json!({"text": null}), execution_generation: None };
         assert_eq!(ev.typed(), Event::Other);
-        let ev = GatewayEvent { kind: "tool.start".into(), session_id: None, payload: json!(5) };
+        let ev = GatewayEvent { kind: "tool.start".into(), session_id: None, payload: json!(5), execution_generation: None };
         assert!(matches!(ev.typed(), Event::ToolStart { .. }));
-        let ev = GatewayEvent { kind: "display.status".into(), session_id: None, payload: json!("bad") };
+        let ev = GatewayEvent { kind: "display.status".into(), session_id: None, payload: json!("bad"), execution_generation: None };
         assert_eq!(ev.typed(), Event::Other);
     }
 
     #[test]
     fn token_debug_hides_secrets() {
+        let ev = GatewayEvent {
+            kind: "approval.request".into(),
+            session_id: Some("s".into()),
+            payload: json!({"kind": "approval", "prompt_id": "p1", "command": "rm x", "choices": ["once", "deny"]}),
+            execution_generation: Some(4),
+        };
+        assert!(matches!(ev.typed(), Event::ApprovalRequest { generation: Some(4), ref prompt_id, .. } if prompt_id == "p1"));
+        let m: TranscriptMessage = serde_json::from_value(json!({"role": "user", "content": [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]})).unwrap();
+        assert_eq!(m.display_text(), "a\nb");
         let t = TokenSet { access_token: "AT".into(), refresh_token: "RT".into(), ..Default::default() };
         let s = format!("{t:?}");
         assert!(!s.contains("AT\"") && !s.contains("RT\""));
