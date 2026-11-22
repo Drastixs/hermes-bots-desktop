@@ -58,6 +58,10 @@ pub const SWATCHES: [&str; 8] = ["#4a84fe", "#e0a14a", "#5fc88f", "#c86fd8", "#5
 
 pub struct App {
     pub settings: store::Settings,
+    /// `HERMES_GATEWAY_URL` at start. It is used for this run only and never saved.
+    pub env_gateway: Option<String>,
+    /// The gateway of the sign-in that is in progress.
+    pub pending_gateway: Option<url::Url>,
     pub phase: Phase,
     pub session: Option<net::Session>,
     pub cmd: Option<UnboundedSender<Command>>,
@@ -123,7 +127,6 @@ pub enum Msg {
     ToggleReduceMotion,
     SignOut,
     // create
-    CreateName(String),
     CreateTitle(String),
     CreateDesc(String),
     CreateColor(usize),
@@ -143,6 +146,8 @@ impl App {
         let url = env_url.clone().unwrap_or_else(|| settings.gateway_url.clone());
         let mut app = App {
             settings: settings.clone(),
+            env_gateway: env_url.clone(),
+            pending_gateway: None,
             phase: Phase::SignIn(SignInState { url_input: url.clone(), ..Default::default() }),
             session: None,
             cmd: None,
@@ -262,7 +267,9 @@ impl App {
                 }
             }
             Msg::SignInPressed => {
-                let Phase::SignIn(st) = &mut self.phase else { return Task::none() };
+                let Phase::SignIn(st) = &mut self.phase else {
+                    return Task::none();
+                };
                 match hermes_api::url_util::normalise_gateway(&st.url_input) {
                     Ok(url) => {
                         st.checking = true;
@@ -274,15 +281,19 @@ impl App {
                 }
             }
             Msg::Probed(res) => {
-                let Phase::SignIn(st) = &mut self.phase else { return Task::none() };
+                let Phase::SignIn(st) = &mut self.phase else {
+                    return Task::none();
+                };
                 st.checking = false;
                 match res {
                     Ok(_status) => {
-                        let Ok(url) = hermes_api::url_util::normalise_gateway(&st.url_input) else { return Task::none() };
+                        let Ok(url) = hermes_api::url_util::normalise_gateway(&st.url_input) else {
+                            return Task::none();
+                        };
                         st.waiting_browser = true;
                         st.status = Some("Finish signing in in your browser.".into());
-                        self.settings.gateway_url = url.to_string();
-                        store::save_settings(&self.settings);
+                        store::remember_gateway(&mut self.settings, url.as_str(), self.env_gateway.as_deref());
+                        self.pending_gateway = Some(url.clone());
                         let (tx, rx) = tokio::sync::oneshot::channel();
                         let open_browser = std::env::var("HERMES_BOTS_NO_BROWSER").map(|v| v != "1").unwrap_or(true);
                         let sign = Task::perform(signin::sign_in(url, open_browser, tx), Msg::SignedIn);
@@ -330,7 +341,9 @@ impl App {
             }
             Msg::SignedIn(res) => match res {
                 Ok(tokens) => {
-                    let Ok(url) = hermes_api::url_util::normalise_gateway(&self.settings.gateway_url) else { return Task::none() };
+                    let Some(url) = self.pending_gateway.take() else {
+                        return Task::none();
+                    };
                     store::save_tokens(url.as_str(), &tokens);
                     self.session = Some(net::Session { gateway: url, tokens });
                     self.phase = Phase::Main;
@@ -379,12 +392,16 @@ impl App {
             }
             Msg::Send => {
                 let text = self.composer.text().trim().to_string();
-                let Some(name) = self.selected.clone() else { return Task::none() };
+                let Some(name) = self.selected.clone() else {
+                    return Task::none();
+                };
                 if text.is_empty() || !self.online() {
                     return Task::none();
                 }
                 let chat = self.chats.entry(name.clone()).or_default();
-                let Some(sid) = chat.session_id.clone() else { return Task::none() };
+                let Some(sid) = chat.session_id.clone() else {
+                    return Task::none();
+                };
                 chat.push(Item::User { text: text.clone() });
                 chat.busy = true;
                 self.statuses.insert(name.clone(), BotStatus::Thinking);
@@ -410,7 +427,9 @@ impl App {
                 }
             }
             Msg::Approve(i, choice) => {
-                let Some(name) = self.selected.clone() else { return Task::none() };
+                let Some(name) = self.selected.clone() else {
+                    return Task::none();
+                };
                 if let Some(chat) = self.chats.get_mut(&name) {
                     let sid = chat.session_id.clone().unwrap_or_default();
                     let chat_gen = chat.generation;
@@ -452,7 +471,9 @@ impl App {
                 }
             }
             Msg::OpenScreen { take_over } => {
-                let Some(name) = self.selected.clone() else { return Task::none() };
+                let Some(name) = self.selected.clone() else {
+                    return Task::none();
+                };
                 self.screen.profile = Some(name.clone());
                 self.screen.mode = ScreenMode::Watching;
                 self.screen.connecting = true;
@@ -506,11 +527,6 @@ impl App {
                 }
                 self.reset_to_signin(false);
             }
-            Msg::CreateName(s) => {
-                if let Some(f) = &mut self.create {
-                    f.name = s.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(40).collect();
-                }
-            }
             Msg::CreateTitle(s) => {
                 if let Some(f) = &mut self.create {
                     if f.name.is_empty() || f.name == slug(&f.title) {
@@ -552,7 +568,9 @@ impl App {
 
     /// Watch the selected Bot's screen as a small live preview in the details pane.
     fn maybe_preview(&mut self, running: bool) {
-        let Some(sel) = self.selected.clone() else { return };
+        let Some(sel) = self.selected.clone() else {
+            return;
+        };
         let want = running && self.details_open && self.details_tab == DetailsTab::Computer && self.screen.mode == ScreenMode::Closed;
         if want && !self.screen.previewing.as_ref().is_some_and(|p| p == &sel) {
             self.screen.previewing = Some(sel.clone());
@@ -601,7 +619,11 @@ impl App {
     }
 
     fn reset_to_signin(&mut self, expired: bool) {
-        let url = self.settings.gateway_url.clone();
+        // Show the address of this session again (it can be the env override).
+        let url = match &self.session {
+            Some(s) => s.gateway.to_string(),
+            None => self.env_gateway.clone().unwrap_or_else(|| self.settings.gateway_url.clone()),
+        };
         self.session = None;
         self.cmd = None;
         self.bots.clear();
@@ -681,7 +703,9 @@ impl App {
                     }
                     return Task::none();
                 };
-                let Some(profile) = self.session_index.get(sid).cloned() else { return Task::none() };
+                let Some(profile) = self.session_index.get(sid).cloned() else {
+                    return Task::none();
+                };
                 let typed = ge.typed();
                 let chat = self.chats.entry(profile.clone()).or_default();
                 if let Some(g) = ge.execution_generation {
@@ -821,7 +845,9 @@ impl App {
         if self.screen.mode == ScreenMode::Control {
             return Task::none();
         }
-        let keyboard::Event::KeyPressed { key, modifiers, .. } = ev else { return Task::none() };
+        let keyboard::Event::KeyPressed { key, modifiers, .. } = ev else {
+            return Task::none();
+        };
         match key.as_ref() {
             Key::Named(Named::Escape) => {
                 if self.create.is_some() {
@@ -838,7 +864,9 @@ impl App {
                 return if modifiers.shift() { iced::widget::operation::focus_previous() } else { iced::widget::operation::focus_next() };
             }
             Key::Character(",") if modifiers.command() => self.settings_open = Some(SettingsPane::General),
-            Key::Character("n") if modifiers.command() && matches!(self.phase, Phase::Main) => return self.update(Msg::NewBot),
+            Key::Character("n") if modifiers.command() && matches!(self.phase, Phase::Main) => {
+                return self.update(Msg::NewBot);
+            }
             Key::Character(d) if modifiers.command() && d.len() == 1 && d.as_bytes()[0].is_ascii_digit() => {
                 let i = (d.as_bytes()[0] - b'1') as usize;
                 if let Some(b) = self.visible_bots().get(i) {
@@ -935,6 +963,12 @@ async fn reqwest_like_get(url: &str) -> Result<(), String> {
     Ok(())
 }
 
+impl App {
+    pub fn view(&self) -> iced::Element<'_, Msg> {
+        crate::views::view(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -951,11 +985,5 @@ mod tests {
         assert_eq!(keysym_for(&Key::Named(Named::Enter), None, m), Some(0xff0d));
         assert_eq!(keysym_for(&Key::Character("a".into()), Some("a"), m), Some(0x61));
         assert_eq!(keysym_for(&Key::Character("c".into()), Some("c"), keyboard::Modifiers::CTRL), None);
-    }
-}
-
-impl App {
-    pub fn view(&self) -> iced::Element<'_, Msg> {
-        crate::views::view(self)
     }
 }

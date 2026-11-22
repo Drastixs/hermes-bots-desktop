@@ -33,7 +33,9 @@ fn config_dir() -> Option<PathBuf> {
 }
 
 pub fn load_settings() -> Settings {
-    let Some(dir) = config_dir() else { return Settings::defaults() };
+    let Some(dir) = config_dir() else {
+        return Settings::defaults();
+    };
     match std::fs::read(dir.join("settings.json")) {
         Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|_| Settings::defaults()),
         Err(_) => Settings::defaults(),
@@ -53,6 +55,27 @@ pub fn save_settings(s: &Settings) {
     }
 }
 
+/// Record the gateway the user signs in to. Returns true when settings.json changed.
+///
+/// `env_override` is the value of `HERMES_GATEWAY_URL`, if set. When the sign-in address is the
+/// same as that override, the user did not type it, so it must not replace the saved address
+/// (for example a mock address from a smoke test over the real gateway).
+pub fn remember_gateway(settings: &mut Settings, signed_in: &str, env_override: Option<&str>) -> bool {
+    let norm = |u: &str| hermes_api::url_util::normalise_gateway(u).map(|u| u.to_string()).ok();
+    let Some(new) = norm(signed_in) else {
+        return false;
+    };
+    if env_override.and_then(norm).as_deref() == Some(new.as_str()) {
+        return false;
+    }
+    if settings.gateway_url == new {
+        return false;
+    }
+    settings.gateway_url = new;
+    save_settings(settings);
+    true
+}
+
 /// Tokens are kept in memory as a fallback when there is no keyring, or when the env var
 /// `HERMES_BOTS_NO_KEYRING=1` is set (tests and headless screenshot runs).
 static MEMORY: std::sync::Mutex<Option<(String, String)>> = std::sync::Mutex::new(None);
@@ -62,7 +85,9 @@ fn keyring_disabled() -> bool {
 }
 
 pub fn save_tokens(gateway: &str, t: &TokenSet) {
-    let Ok(json) = serde_json::to_string(t) else { return };
+    let Ok(json) = serde_json::to_string(t) else {
+        return;
+    };
     if !keyring_disabled()
         && let Ok(e) = keyring::Entry::new(SERVICE, gateway)
         && e.set_password(&json).is_ok()
@@ -118,8 +143,39 @@ mod tests {
         assert!(load_tokens("http://g").is_none());
     }
 
+    /// Tests that change `HERMES_BOTS_CONFIG_DIR` hold this lock, so they do not race.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn env_override_does_not_replace_saved_gateway() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("hbd-test-gw-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: test-only, under ENV_LOCK.
+        unsafe { std::env::set_var("HERMES_BOTS_CONFIG_DIR", &dir) };
+        let mut s = Settings { gateway_url: "https://hermes.example.com/".into(), ..Settings::defaults() };
+        save_settings(&s);
+
+        // Sign in to the override address (the mock smoke test): nothing is saved.
+        let env = Some("http://127.0.0.1:8787");
+        assert!(!remember_gateway(&mut s, "http://127.0.0.1:8787", env));
+        assert!(!remember_gateway(&mut s, "http://127.0.0.1:8787/", env));
+        assert_eq!(load_settings().gateway_url, "https://hermes.example.com/");
+
+        // The user types another address while the override is set: that is saved.
+        assert!(remember_gateway(&mut s, "https://other.example.com", env));
+        assert_eq!(load_settings().gateway_url, "https://other.example.com/");
+
+        // No override: a typed address is saved; an invalid one is ignored.
+        assert!(remember_gateway(&mut s, "https://hermes.example.com", None));
+        assert!(!remember_gateway(&mut s, "not a url", None));
+        assert_eq!(load_settings().gateway_url, "https://hermes.example.com/");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[test]
     fn settings_round_trip() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dir = std::env::temp_dir().join(format!("hbd-test-{}", std::process::id()));
         // SAFETY: test-only.
         unsafe { std::env::set_var("HERMES_BOTS_CONFIG_DIR", &dir) };
