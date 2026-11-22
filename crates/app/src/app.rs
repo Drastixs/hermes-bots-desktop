@@ -867,8 +867,8 @@ impl App {
             Key::Character("n") if modifiers.command() && matches!(self.phase, Phase::Main) => {
                 return self.update(Msg::NewBot);
             }
-            Key::Character(d) if modifiers.command() && d.len() == 1 && d.as_bytes()[0].is_ascii_digit() => {
-                let i = (d.as_bytes()[0] - b'1') as usize;
+            Key::Character(d) if modifiers.command() && matches!(d.as_bytes(), [b'1'..=b'9']) => {
+                let i = usize::from(d.as_bytes()[0] - b'1');
                 if let Some(b) = self.visible_bots().get(i) {
                     let name = b.name.clone();
                     return self.update(Msg::SelectBot(name));
