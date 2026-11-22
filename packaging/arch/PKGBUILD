@@ -1,0 +1,50 @@
+# Maintainer: Drastixs
+# Build from a release tag:  makepkg -si
+# Build from main:           _ref=branch=main makepkg -si
+pkgname=hermes-bots-desktop
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Native desktop client for Hermes Agent Bot Mode"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Drastixs/hermes-bots-desktop"
+license=('MIT')
+depends=('libxkbcommon' 'libxkbcommon-x11' 'libxcb' 'wayland' 'vulkan-icd-loader' 'fontconfig' 'dbus' 'gcc-libs' 'glibc')
+optdepends=('gnome-keyring: Secret Service provider to keep the sign-in tokens'
+            'kwallet: other Secret Service provider')
+makedepends=('git' 'cargo' 'pkgconf')
+_ref=${_ref:-tag=v$pkgver}
+source=("$pkgname::git+$url.git#$_ref")
+sha256sums=('SKIP')
+options=('!lto')
+
+prepare() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release -p hermes-bots
+}
+
+check() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen --workspace
+}
+
+package() {
+  cd "$pkgname"
+  local id=io.github.drastixs.HermesBots
+  install -Dm755 target/release/hermes-bots "$pkgdir/usr/bin/hermes-bots"
+  install -Dm644 "packaging/$id.desktop" "$pkgdir/usr/share/applications/$id.desktop"
+  for n in 32 64 128 256 512; do
+    install -Dm644 "assets/icons/hermes-bots-$n.png" "$pkgdir/usr/share/icons/hicolor/${n}x${n}/apps/$id.png"
+  done
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  [ -f THIRD_PARTY.md ] && install -Dm644 THIRD_PARTY.md "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY.md"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

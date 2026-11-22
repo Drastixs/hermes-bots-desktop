@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Hermes Bots
+GenericName=Bot Client
+Comment=Desktop client for Hermes Agent Bot Mode
+Exec=hermes-bots
+Icon=io.github.drastixs.HermesBots
+Terminal=false
+Categories=Network;Chat;
+Keywords=Hermes;Bot;Agent;
+StartupWMClass=io.github.drastixs.HermesBots
+StartupNotify=true
