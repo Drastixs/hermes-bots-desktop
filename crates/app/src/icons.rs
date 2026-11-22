@@ -13,13 +13,10 @@ pub const CHEVRON_RIGHT: char = '\u{e06f}';
 pub const CHEVRON_DOWN: char = '\u{e06d}';
 pub const LOADER: char = '\u{e10a}';
 pub const WIFI_OFF: char = '\u{e1af}';
-pub const ALERT: char = '\u{e193}';
 pub const LOG_OUT: char = '\u{e10e}';
 pub const MAXIMIZE: char = '\u{e113}';
 pub const MINIMIZE: char = '\u{e11b}';
-pub const POINTER: char = '\u{e1c3}';
 pub const HAND: char = '\u{e1d7}';
-pub const REFRESH: char = '\u{e145}';
 pub const SEARCH: char = '\u{e151}';
 pub const BOT: char = '\u{e1bb}';
 pub const CIRCLE_ALERT: char = '\u{e077}';
@@ -33,9 +30,6 @@ pub const EYE: char = '\u{e0ba}';
 pub const LOG_IN: char = '\u{e10d}';
 pub const ARROW_LEFT: char = '\u{e048}';
 pub const KEY: char = '\u{e4a3}';
-pub const USER: char = '\u{e19f}';
-pub const BRAIN: char = '\u{e3c6}';
-pub const UNDO: char = '\u{e2a1}';
 
 pub fn icon<'a>(c: char) -> Text<'a> {
     text(c.to_string()).font(crate::theme::ICONS).size(16).line_height(1.0)

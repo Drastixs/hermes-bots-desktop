@@ -637,7 +637,9 @@ fn activity_view<'a>(app: &'a App, i: usize, tools: &'a [ToolCall], expanded: bo
 // ---------------------------------------------------------------- details pane
 
 fn details(app: &App) -> El<'_> {
-    let Some(bot) = app.selected_bot() else { return Space::new().into() };
+    let Some(bot) = app.selected_bot() else {
+        return Space::new().into();
+    };
     let tabs = row![
         button(text("Computer").size(13)).padding([6, 12]).style(theme::btn_tab(app.details_tab == DetailsTab::Computer)).on_press(Msg::DetailsTab(DetailsTab::Computer)),
         button(text("About").size(13)).padding([6, 12]).style(theme::btn_tab(app.details_tab == DetailsTab::About)).on_press(Msg::DetailsTab(DetailsTab::About)),

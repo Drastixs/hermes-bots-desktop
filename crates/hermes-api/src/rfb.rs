@@ -82,7 +82,7 @@ pub struct Framebuffer {
 impl Framebuffer {
     pub fn new(width: u16, height: u16) -> Self {
         let mut rgba = vec![0u8; width as usize * height as usize * 4];
-        for px in rgba.chunks_exact_mut(4) {
+        for px in rgba.as_chunks_mut::<4>().0 {
             px[3] = 255;
         }
         Self { width, height, rgba }
@@ -380,7 +380,7 @@ pub fn decode_zrle(fb: &mut Framebuffer, data: &[u8], x: u16, y: u16, w: u16, h:
                 2..=16 => {
                     let size = sub as usize;
                     let r = take(size * 3, &mut p)?;
-                    let pal: Vec<[u8; 3]> = data[r].chunks_exact(3).map(|c| [c[0], c[1], c[2]]).collect();
+                    let pal: Vec<[u8; 3]> = data[r].as_chunks::<3>().0.iter().map(|c| [c[0], c[1], c[2]]).collect();
                     let bits = match size {
                         2 => 1,
                         3..=4 => 2,
@@ -405,7 +405,7 @@ pub fn decode_zrle(fb: &mut Framebuffer, data: &[u8], x: u16, y: u16, w: u16, h:
                         Vec::new()
                     } else {
                         let r = take((sub as usize - 128) * 3, &mut p)?;
-                        data[r].chunks_exact(3).map(|c| [c[0], c[1], c[2]]).collect()
+                        data[r].as_chunks::<3>().0.iter().map(|c| [c[0], c[1], c[2]]).collect()
                     };
                     let mut i = 0usize;
                     while i < n_px {
@@ -675,7 +675,7 @@ mod tests {
         let mut r = ChunkReader::new(rx);
         let mut d = Decoder::new(2, 2);
         d.read_message(&mut r).await.unwrap();
-        assert!(d.fb.rgba.chunks_exact(4).all(|p| p == [30, 20, 10, 255]));
+        assert!(d.fb.rgba.as_chunks::<4>().0.iter().all(|p| p == &[30, 20, 10, 255]));
     }
 
     #[test]

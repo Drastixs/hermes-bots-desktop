@@ -253,6 +253,7 @@ async fn native_refresh(State(m): State<Shared>, Json(b): Json<RefreshBody>) -> 
 
 // ---------------- authenticated ----------------
 
+#[allow(clippy::result_large_err)] // A mock route helper; the size is not important here.
 async fn check_bearer(m: &Shared, headers: &HeaderMap) -> Result<(), Response> {
     if m.offline().await {
         return Err(StatusCode::SERVICE_UNAVAILABLE.into_response());
@@ -387,7 +388,9 @@ async fn run_gateway(m: Shared, socket: WebSocket) {
         let reply = handle_rpc(&m, &method, &params).await;
         let frame = match reply {
             Ok(r) => json!({"jsonrpc": "2.0", "id": id, "result": r}),
-            Err((code, msg)) => json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": msg}}),
+            Err((code, msg)) => {
+                json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": msg}})
+            }
         };
         if tx.send(frame).await.is_err() {
             break;
@@ -472,7 +475,9 @@ async fn handle_rpc(m: &Shared, method: &str, p: &Value) -> Result<Value, (i64, 
                 }
                 prof
             };
-            let Some(prof) = prof else { return Err((4004, "unknown session".into())) };
+            let Some(prof) = prof else {
+                return Err((4004, "unknown session".into()));
+            };
             let m2 = m.clone();
             let sid2 = sid.clone();
             tokio::spawn(async move { stream_reply(m2, sid2, prof.clone(), text).await });

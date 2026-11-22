@@ -43,7 +43,6 @@ pub mod c {
     pub const BORDER_STRONG: Color = Color { r: 1.0, g: 0.902, b: 0.796, a: 0.22 };
     /// Accent: the Hermes warm glow (rgba(255,189,56)).
     pub const ACCENT: Color = color!(0xffbd38);
-    pub const ACCENT_SOFT: Color = Color { r: 1.0, g: 0.741, b: 0.22, a: 0.16 };
     pub const ON_ACCENT: Color = color!(0x041c1c);
     pub const GREEN: Color = color!(0x55a583);
     pub const RED: Color = color!(0xe75e78);
@@ -69,7 +68,7 @@ pub fn parse_hex(s: Option<&str>) -> Color {
     }
     // `hsl(H S% L%)` swatches from the desktop app.
     if let Some(rest) = s.strip_prefix("hsl(").and_then(|r| r.strip_suffix(')')) {
-        let parts: Vec<f32> = rest.split(|ch: char| ch == ' ' || ch == ',').filter(|p| !p.is_empty()).filter_map(|p| p.trim_end_matches('%').parse().ok()).collect();
+        let parts: Vec<f32> = rest.split([' ', ',']).filter(|p| !p.is_empty()).filter_map(|p| p.trim_end_matches('%').parse().ok()).collect();
         if parts.len() == 3 {
             return hsl(parts[0], parts[1] / 100.0, parts[2] / 100.0);
         }

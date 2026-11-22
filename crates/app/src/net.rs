@@ -20,7 +20,6 @@ use tokio::sync::mpsc;
 /// Commands from the UI to the worker.
 #[derive(Debug, Clone)]
 pub enum Command {
-    RefreshBots,
     OpenChat {
         profile: String,
     },
@@ -219,7 +218,6 @@ impl Worker {
             return;
         };
         match cmd {
-            Command::RefreshBots => self.load_bots().await,
             Command::OpenChat { profile } => match gw.open_bot_chat(&profile).await {
                 Ok(chat) => {
                     self.sessions.insert(chat.session_id.clone(), profile.clone());
@@ -326,13 +324,11 @@ async fn worker(session: Session, out: fmpsc::Sender<NetEvent>) {
         match w.rest.me().await {
             Ok(me) => w.emit(NetEvent::Me(me)).await,
             Err(ApiError::Unauthorized { .. }) => {
-                if !w.refresh_or_sign_out().await {
-                    if w.rest.refresh_token().await.is_none() || !w.rest.has_token().await {
-                        // Signed out; wait for the UI to drop this subscription.
-                        futures::future::pending::<()>().await;
-                    }
-                    // Refresh did not work for a network reason: retry later.
+                if !w.refresh_or_sign_out().await && (w.rest.refresh_token().await.is_none() || !w.rest.has_token().await) {
+                    // Signed out; wait for the UI to drop this subscription.
+                    futures::future::pending::<()>().await;
                 }
+                // Refresh did not work for a network reason: retry later.
             }
             Err(_) => {}
         }

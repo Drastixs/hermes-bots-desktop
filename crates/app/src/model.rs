@@ -54,10 +54,6 @@ impl Bot {
             worker_active: p.worker_session.as_ref().is_some_and(|w| now - w.last_active < 120.0),
         }
     }
-
-    pub fn initials(&self) -> String {
-        self.title.chars().find(|c| c.is_alphanumeric()).map(|c| c.to_uppercase().collect()).unwrap_or_else(|| "B".into())
-    }
 }
 
 pub fn now_secs() -> f64 {
@@ -536,6 +532,5 @@ mod tests {
         let b = Bot::from_profile(&p);
         assert_eq!(b.title, "Scout");
         assert_eq!(b.preview, "p");
-        assert_eq!(b.initials(), "S");
     }
 }
